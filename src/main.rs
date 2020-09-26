@@ -1,6 +1,5 @@
-use std::thread;
+use repository::{FsRepository, Repository};
 use structopt::StructOpt;
-use walkdir::WalkDir;
 
 mod fssource;
 mod repository;
@@ -25,10 +24,10 @@ struct Opts {
 
 fn main() {
     let opts = Opts::from_args();
+    let repo: FsRepository = Repository::new(&opts.repository);
 
-    repository::initialize(&opts.repository);
-
-    repository::add_block(&opts.repository, "This is a test".as_bytes());
+    repo.initialize();
+    repo.add_block("This is a test".as_bytes());
 
     // let fssource = fssource::start(opts.path);
 

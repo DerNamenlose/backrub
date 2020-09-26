@@ -8,34 +8,64 @@ use std::path;
 
 use rmp_serde::Serializer;
 
-/**
- * Initialize the given backup repository, i.e. check whether anything needs to be set up in the
- * directory
- */
-pub fn initialize(path: &str) -> io::Result<()> {
-    fs::create_dir_all(path)?;
-    if !is_initialized(path) {
-        create_backrub_infrastructure(path)?;
-    }
-    Ok(())
+pub trait Repository {
+    /**
+     * reate a new repository instance pointing to the given path
+     */
+    fn new(path: &str) -> Self;
+    /**
+     * Initialize the given backup repository, i.e. check whether anything needs to be set up in the
+     * directory
+     */
+    fn initialize(&self) -> io::Result<()>;
+
+    /**
+     * Add a new block to the backup repository. This will return the
+     * block's ID, if successful or an error description, if not
+     */
+    fn add_block(&self, data: &[u8]) -> Result<String, &'static str>;
 }
 
-/**
- * Add a new block to the backup repository. This will return the
- * block's ID, if successful or an error description, if not
- */
-pub fn add_block(path: &str, data: &[u8]) -> Result<String, &'static str> {
-    let mut hasher = Sha3_256::new();
-    hasher.update(&data);
-    let id = hex::encode(hasher.finalize());
-    let prefix = &id[..2];
-    let parent_path: path::PathBuf = [&path, "blocks", prefix].iter().collect();
-    let data_path: path::PathBuf = [&path, "blocks", &id[2..]].iter().collect();
-    fs::create_dir_all(parent_path)
-        .or(Err("Could not create parent directory"))
-        .map(|()| fs::write(data_path, &data))
-        .or(Err("Could not write file"))
-        .and(Ok(id))
+pub struct FsRepository {
+    path: String,
+}
+
+impl FsRepository {
+    fn path_for(&self, segments: &[&str]) -> path::PathBuf {
+        let mut p = path::PathBuf::from(&self.path);
+        for seg in segments {
+            p.push(seg);
+        }
+        p
+    }
+}
+
+impl Repository for FsRepository {
+    fn new(path: &str) -> Self {
+        return FsRepository {
+            path: String::from(path),
+        };
+    }
+    fn initialize(&self) -> std::result::Result<(), std::io::Error> {
+        fs::create_dir_all(&self.path)?;
+        if !is_initialized(&self.path) {
+            create_backrub_infrastructure(&self.path)?;
+        }
+        Ok(())
+    }
+    fn add_block(&self, data: &[u8]) -> std::result::Result<std::string::String, &'static str> {
+        let mut hasher = Sha3_256::new();
+        hasher.update(&data);
+        let id = hex::encode(hasher.finalize());
+        let prefix = &id[..2];
+        let parent_path: path::PathBuf = self.path_for(&["blocks", prefix]);
+        let data_path: path::PathBuf = self.path_for(&["blocks", prefix, &id[2..]]);
+        fs::create_dir_all(parent_path)
+            .or(Err("Could not create parent directory"))
+            .map(|()| fs::write(data_path, &data))
+            .or(Err("Could not write file"))
+            .and(Ok(id))
+    }
 }
 
 fn is_initialized(path: &str) -> bool {
