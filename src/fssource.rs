@@ -52,7 +52,7 @@ impl Iterator for FsBlockSource {
     type Item = Vec<u8>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut buf = [0; 1024];
+        let mut buf = [0; 4096];
         let result = self.file.read(&mut buf);
         match result {
             Ok(bytes) => {
