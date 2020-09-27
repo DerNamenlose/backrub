@@ -39,7 +39,28 @@ fn main() {
             let object_result = repo.start_object(&source_name.unwrap());
             match (blocks_result, object_result) {
                 (Ok(blocks), Ok(mut object)) => {
-                    copy_blocks(blocks, object.as_mut());
+                    let copy_result = copy_blocks(blocks, object.as_mut());
+                    match copy_result {
+                        Ok(()) => {
+                            println!("Adding object descriptor to repository");
+                            let finish_result = object.finish();
+                            match finish_result {
+                                Ok(id) => {
+                                    println!("New object: {}", id);
+                                }
+                                Err(message) => println!(
+                                    "Could not finish object {}. Reason: {}",
+                                    source_name.unwrap(),
+                                    message
+                                ),
+                            }
+                        }
+                        Err(message) => println!(
+                            "Could not copy blocks for {}. Reason: {}",
+                            source_name.unwrap(),
+                            message
+                        ),
+                    }
                 }
                 (_, _) => println!("Could not copy source blocks into target object"),
             }

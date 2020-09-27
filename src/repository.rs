@@ -24,11 +24,6 @@ pub trait Repository {
      * Start a new backup object in the repository
      */
     fn start_object(&self, name: &str) -> std::result::Result<Box<dyn BackupObjectWriter>, String>;
-
-    /**
-     * finish an object in the repository
-     */
-    fn finish_object(&self, object: Box<dyn BackupObjectWriter>) -> io::Result<()>;
 }
 
 pub struct FsRepository {
@@ -67,13 +62,6 @@ impl Repository for FsRepository {
             repo_path: String::from(&self.path),
         }));
     }
-
-    fn finish_object(
-        &self,
-        _: std::boxed::Box<dyn BackupObjectWriter>,
-    ) -> std::result::Result<(), std::io::Error> {
-        todo!()
-    }
 }
 
 pub struct FsBackupObjectWriter {
@@ -81,22 +69,40 @@ pub struct FsBackupObjectWriter {
     repo_path: String,
 }
 
-impl BackupObjectWriter for FsBackupObjectWriter {
-    fn add_block(&mut self, data: &[u8]) -> std::result::Result<std::string::String, &'static str> {
+impl FsBackupObjectWriter {
+    fn write_block(&self, data: &[u8]) -> Result<String, &'static str> {
         let mut hasher = Sha3_256::new();
         hasher.update(&data);
         let id = hex::encode(hasher.finalize());
         let prefix = &id[..2];
         let parent_path: path::PathBuf = path_for(&self.repo_path, &["blocks", prefix]);
         let data_path: path::PathBuf = path_for(&self.repo_path, &["blocks", prefix, &id[2..]]);
-        let write_result = fs::create_dir_all(parent_path)
+        fs::create_dir_all(parent_path)
             .or(Err("Could not create parent directory"))
             .map(|()| fs::write(data_path, &data))
             .or(Err("Could not write file"))
-            .and(Ok(String::from(&id)));
+            .and(Ok(String::from(&id)))
+    }
+}
+
+impl BackupObjectWriter for FsBackupObjectWriter {
+    fn add_block(&mut self, data: &[u8]) -> std::result::Result<std::string::String, &'static str> {
+        let id = self.write_block(data)?;
         println!("Added block of size {} with id {}", data.len(), id);
-        self.meta.blocks.push(id);
-        write_result
+        self.meta.blocks.push(id.clone());
+        Ok(id)
+    }
+
+    fn finish(&self) -> Result<String, &'static str> {
+        let mut buf: Vec<u8> = Vec::new();
+        let serialization_result = self.meta.serialize(&mut Serializer::new(&mut buf));
+        match serialization_result {
+            Err(error) => {
+                println!("Could not serialize meta data {}", error);
+                Err("Could not serialize meta data")
+            }
+            Ok(()) => self.write_block(&buf),
+        }
     }
 }
 
