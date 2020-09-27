@@ -1,3 +1,4 @@
+use crate::backupobject::{BackupObject, BackupObjectWriter};
 use hex;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
@@ -20,24 +21,26 @@ pub trait Repository {
     fn initialize(&self) -> io::Result<()>;
 
     /**
-     * Add a new block to the backup repository. This will return the
-     * block's ID, if successful or an error description, if not
+     * Start a new backup object in the repository
      */
-    fn add_block(&self, data: &[u8]) -> Result<String, &'static str>;
+    fn start_object(&self, name: &str) -> std::result::Result<Box<dyn BackupObjectWriter>, String>;
+
+    /**
+     * finish an object in the repository
+     */
+    fn finish_object(&self, object: Box<dyn BackupObjectWriter>) -> io::Result<()>;
 }
 
 pub struct FsRepository {
     path: String,
 }
 
-impl FsRepository {
-    fn path_for(&self, segments: &[&str]) -> path::PathBuf {
-        let mut p = path::PathBuf::from(&self.path);
-        for seg in segments {
-            p.push(seg);
-        }
-        p
+fn path_for(base: &str, segments: &[&str]) -> path::PathBuf {
+    let mut p = path::PathBuf::from(&base);
+    for seg in segments {
+        p.push(seg);
     }
+    p
 }
 
 impl Repository for FsRepository {
@@ -53,18 +56,47 @@ impl Repository for FsRepository {
         }
         Ok(())
     }
-    fn add_block(&self, data: &[u8]) -> std::result::Result<std::string::String, &'static str> {
+
+    fn start_object(&self, name: &str) -> std::result::Result<Box<dyn BackupObjectWriter>, String> {
+        println!("Starting new backup object: {}", name);
+        return Ok(Box::new(FsBackupObjectWriter {
+            meta: BackupObject {
+                name: String::from(name),
+                blocks: vec![],
+            },
+            repo_path: String::from(&self.path),
+        }));
+    }
+
+    fn finish_object(
+        &self,
+        _: std::boxed::Box<dyn BackupObjectWriter>,
+    ) -> std::result::Result<(), std::io::Error> {
+        todo!()
+    }
+}
+
+pub struct FsBackupObjectWriter {
+    meta: BackupObject,
+    repo_path: String,
+}
+
+impl BackupObjectWriter for FsBackupObjectWriter {
+    fn add_block(&mut self, data: &[u8]) -> std::result::Result<std::string::String, &'static str> {
         let mut hasher = Sha3_256::new();
         hasher.update(&data);
         let id = hex::encode(hasher.finalize());
         let prefix = &id[..2];
-        let parent_path: path::PathBuf = self.path_for(&["blocks", prefix]);
-        let data_path: path::PathBuf = self.path_for(&["blocks", prefix, &id[2..]]);
-        fs::create_dir_all(parent_path)
+        let parent_path: path::PathBuf = path_for(&self.repo_path, &["blocks", prefix]);
+        let data_path: path::PathBuf = path_for(&self.repo_path, &["blocks", prefix, &id[2..]]);
+        let write_result = fs::create_dir_all(parent_path)
             .or(Err("Could not create parent directory"))
             .map(|()| fs::write(data_path, &data))
             .or(Err("Could not write file"))
-            .and(Ok(id))
+            .and(Ok(String::from(&id)));
+        println!("Added block of size {} with id {}", data.len(), id);
+        self.meta.blocks.push(id);
+        write_result
     }
 }
 

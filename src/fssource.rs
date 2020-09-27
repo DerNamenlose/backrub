@@ -1,44 +1,68 @@
-use std::sync::mpsc::sync_channel;
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc::SyncSender;
-use std::thread;
+use std::fs::File;
+use std::io::Read;
 use walkdir::DirEntry;
 use walkdir::WalkDir;
 
 pub struct FsSource {
-    pub output: Receiver<DirEntry>,
-    thread: thread::JoinHandle<()>,
+    path: String,
 }
 
-fn source_main(path: String, sender: SyncSender<DirEntry>) -> () {
-    for file in WalkDir::new(path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|f| f.file_type().is_file())
-    {
-        let result = sender.send(file);
-        if result.is_err() {
-            println!("Could not write to output");
-            break;
+impl FsSource {
+    pub fn new(path: &str) -> Self {
+        FsSource {
+            path: String::from(path),
         }
     }
-    drop(sender);
-}
 
-pub fn start(path: String) -> FsSource {
-    println!("Starting FsSource thread for path {}", path);
-    let (sender, receiver) = sync_channel(100);
-    let thread = thread::spawn(|| source_main(path, sender));
-    FsSource {
-        output: receiver,
-        thread: thread,
+    pub fn objects(&self) -> FsObjectIterator {
+        FsObjectIterator {
+            current: Box::new(
+                WalkDir::new(&self.path)
+                    .into_iter()
+                    .filter_map(|e| e.ok())
+                    .filter(|f| f.file_type().is_file()),
+            ),
+        }
+    }
+
+    pub fn open_entry(&self, path: &str) -> std::io::Result<FsBlockSource> {
+        Ok(FsBlockSource {
+            file: File::open(&path)?,
+        })
     }
 }
 
-pub fn stop(source: FsSource) -> () {
-    let result = source.thread.join();
-    match result {
-        Ok(_) => {}
-        Err(_) => println!("Could not stop repository thread"),
+pub struct FsObjectIterator {
+    current: Box<dyn Iterator<Item = DirEntry>>,
+}
+
+impl Iterator for FsObjectIterator {
+    type Item = DirEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.next()
+    }
+}
+
+pub struct FsBlockSource {
+    file: File,
+}
+
+impl Iterator for FsBlockSource {
+    type Item = Vec<u8>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut buf = [0; 1024];
+        let result = self.file.read(&mut buf);
+        match result {
+            Ok(bytes) => {
+                if bytes > 0 {
+                    Some(buf[..bytes].to_vec())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
     }
 }
