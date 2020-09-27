@@ -1,4 +1,5 @@
 use crate::backupobject::{BackupObject, BackupObjectWriter};
+use crate::BackupInstance;
 use hex;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
@@ -24,6 +25,11 @@ pub trait Repository {
      * Start a new backup object in the repository
      */
     fn start_object(&self, name: &str) -> std::result::Result<Box<dyn BackupObjectWriter>, String>;
+
+    /**
+     * Finish the given backup by writing it to the repository
+     */
+    fn finish_backup(&self, backup: BackupInstance) -> std::io::Result<()>;
 }
 
 pub struct FsRepository {
@@ -61,6 +67,23 @@ impl Repository for FsRepository {
             },
             repo_path: String::from(&self.path),
         }));
+    }
+    fn finish_backup(&self, backup: BackupInstance) -> std::io::Result<()> {
+        let instances_path = path_for(&self.path, &["instances"]);
+        fs::create_dir_all(instances_path)?;
+        let backup_file_name = format!("{}-{}", backup.time, backup.name);
+        let instance_path = path_for(&self.path, &["instances", &backup_file_name]);
+        let file = fs::File::create(instance_path)?;
+        let store_result = backup.serialize(&mut Serializer::new(file));
+        match store_result {
+            Ok(_) => {
+                println!("Finished writing instance {} to repository.", backup.name);
+                std::io::Result::Ok(())
+            }
+            Err(error) => {
+                std::io::Result::Err(std::io::Error::new(std::io::ErrorKind::Other, error))
+            }
+        }
     }
 }
 
