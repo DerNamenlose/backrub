@@ -18,7 +18,7 @@ pub trait BackupObjectWriter {
     fn finish(&self) -> Result<String, &'static str>;
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Eq, PartialEq)]
 pub struct BackupObject {
     pub name: String,
     pub blocks: Vec<String>,

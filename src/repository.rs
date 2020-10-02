@@ -1,5 +1,5 @@
-use crate::backupobject::{BackupObject, BackupObjectWriter};
-use crate::BackupInstance;
+use super::backup::BackupInstance;
+use super::backupobject::{BackupObject, BackupObjectWriter};
 use hex;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
@@ -142,6 +142,10 @@ fn create_backrub_infrastructure(path: &str) -> io::Result<()> {
     let meta_path: path::PathBuf = [&path, "backrub"].iter().collect();
     let file = &mut File::create(meta_path)?;
     meta.serialize(&mut Serializer::new(file));
+    let block_path: path::PathBuf = [&path, "blocks"].iter().collect();
+    fs::create_dir_all(block_path)?;
+    let instance_path: path::PathBuf = [&path, "instances"].iter().collect();
+    fs::create_dir_all(instance_path)?;
     Ok(())
 }
 
