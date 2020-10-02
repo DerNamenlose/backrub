@@ -13,3 +13,11 @@ rmp-serde = "0.14.4"
 serde = { version = "1.0", features = ["derive"] }
 sha3 = "0.9.1"
 hex = "0.4.2"
+
+[dev-dependencies]
+assert_fs = "1.0.0"
+assert2 = "0.3.3"
+
+[lib]
+name = "backrub"
+path = "src/lib.rs"
