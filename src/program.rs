@@ -1,5 +1,6 @@
 use super::backup::BackupInstance;
 use super::backupobject::BackupObjectWriter;
+use super::errors::Result;
 use super::fsrepository::FsRepository;
 use super::fssource::{FsBlockSource, FsSource};
 use super::repository::Repository;
@@ -62,10 +63,13 @@ pub fn make_backup(repository: &str, path: &str, name: &str) {
     }
 }
 
-fn copy_blocks(
-    blocks: FsBlockSource,
-    object: &mut dyn BackupObjectWriter,
-) -> Result<(), &'static str> {
+fn restore_backup(repository: &str, path: &str, name: &str) -> Result<()> {
+    let repository: FsRepository = Repository::new(repository);
+    // let instance = repository.open_instance(name);
+    Ok(())
+}
+
+fn copy_blocks(blocks: FsBlockSource, object: &mut dyn BackupObjectWriter) -> Result<()> {
     for block in blocks {
         object.add_block(&block)?;
     }

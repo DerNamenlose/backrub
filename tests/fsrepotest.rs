@@ -3,9 +3,12 @@ mod fsrepotest {
     use assert2;
     use assert_fs::prelude::*;
     use backrub::backupobject::BackupObject;
+    use backrub::errors::Result;
     use backrub::fsrepository::FsRepository;
+    use backrub::program::make_backup;
     use backrub::repository::Repository;
     use rand::prelude::*;
+    use rand_distr::Exp;
     use rmp_serde::decode::Error;
     use rmp_serde::Deserializer;
     use serde::Deserialize;
@@ -14,7 +17,7 @@ mod fsrepotest {
     use std::path::Path;
 
     #[test]
-    fn initialize_creates_repo_structure() -> std::io::Result<()> {
+    fn initialize_creates_repo_structure() -> Result<()> {
         let temp = assert_fs::TempDir::new().unwrap();
         let test_path = temp.path().to_str().unwrap();
         let repo: FsRepository = Repository::new(test_path);
@@ -28,7 +31,7 @@ mod fsrepotest {
     }
 
     #[test]
-    fn block_is_stored_in_repository() -> std::io::Result<()> {
+    fn block_is_stored_in_repository() -> Result<()> {
         let temp = assert_fs::TempDir::new().unwrap();
         let test_path = temp.path().to_str().unwrap();
         let repo: FsRepository = Repository::new(test_path);
@@ -52,7 +55,7 @@ mod fsrepotest {
     }
 
     #[test]
-    fn object_is_represented_by_correct_block() -> std::io::Result<()> {
+    fn object_is_represented_by_correct_block() -> Result<()> {
         let temp = assert_fs::TempDir::new().unwrap();
         let test_path = temp.path().to_str().unwrap();
         let repo: FsRepository = Repository::new(test_path);
@@ -73,7 +76,7 @@ mod fsrepotest {
         );
 
         let mut deserializer = Deserializer::new(Cursor::new(content));
-        let deserialize_result: Result<BackupObject, Error> =
+        let deserialize_result: std::result::Result<BackupObject, Error> =
             Deserialize::deserialize(&mut deserializer);
         assert2::let_assert!(Ok(structure) = deserialize_result);
 
@@ -91,7 +94,7 @@ mod fsrepotest {
     }
 
     #[test]
-    fn object_roundtrip_is_successful() -> std::io::Result<()> {
+    fn object_roundtrip_is_successful() -> Result<()> {
         let mut data = vec![0; 65536];
         let temp = assert_fs::TempDir::new().unwrap();
         let test_path = temp.path().to_str().unwrap();
@@ -116,5 +119,43 @@ mod fsrepotest {
         assert2::assert!(return_data == data);
 
         Ok(())
+    }
+
+    #[test]
+    fn instance_roundtrip_is_successful() -> Result<()> {
+        let source = assert_fs::TempDir::new().unwrap();
+        let test_path = source.path().to_str().unwrap();
+        print!("Initializing source directory... ");
+        setup_source_dir(test_path);
+        println!("Done.");
+        println!("Starting backup process...");
+        let repo_t = assert_fs::TempDir::new().unwrap();
+        let r = repo_t.into_persistent();
+        let repo_path = r.path().to_str().unwrap();
+
+        make_backup(repo_path, test_path, "ThisRandomBackup");
+
+        Ok(())
+    }
+
+    fn setup_source_dir(path: &str) {
+        let mut rnd = rand::thread_rng();
+        let filenames: Vec<String> = (0..100)
+            .map(|_| format!("file-{}", rnd.next_u32()))
+            .collect();
+        let pathnames: Vec<String> = (0..20).map(|_| format!("dir-{}", rnd.next_u32())).collect();
+        for dir in &pathnames {
+            let p: std::path::PathBuf = [path, &dir].iter().collect();
+            fs::create_dir_all(p).unwrap();
+        }
+        let exp = Exp::new(3.0).unwrap();
+        for file in filenames {
+            let parent_dir = pathnames.choose(&mut rnd).unwrap();
+            let data_size = (rnd.sample(exp) * 1024.0 * 1024.0) as usize; // generate an exponentially distributed filesize
+            let mut data = vec![0; data_size];
+            rnd.fill_bytes(&mut data);
+            let p: std::path::PathBuf = [path, &parent_dir, &file].iter().collect();
+            fs::write(p, data).unwrap();
+        }
     }
 }

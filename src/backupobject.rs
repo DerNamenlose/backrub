@@ -1,3 +1,4 @@
+use super::errors::Result;
 use serde::{Deserialize, Serialize};
 
 /**
@@ -10,12 +11,12 @@ pub trait BackupObjectWriter {
      * Add a new block to the backup object. This will return the
      * block's ID, if successful or an error description, if not
      */
-    fn add_block(&mut self, data: &[u8]) -> Result<String, &'static str>;
+    fn add_block(&mut self, data: &[u8]) -> Result<String>;
 
     /**
      * Finish this object by writing
      */
-    fn finish(&self) -> Result<String, &'static str>;
+    fn finish(&self) -> Result<String>;
 }
 
 /**

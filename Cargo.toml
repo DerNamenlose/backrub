@@ -18,6 +18,7 @@ hex = "0.4.2"
 assert_fs = "1.0.0"
 assert2 = "0.3.3"
 rand = "0.7.3"
+rand_distr = "0.3.0"
 
 [lib]
 name = "backrub"
