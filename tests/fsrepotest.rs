@@ -3,7 +3,9 @@ mod fsrepotest {
     use assert2;
     use assert_fs::prelude::*;
     use backrub::backupobject::BackupObject;
-    use backrub::repository::{FsRepository, Repository};
+    use backrub::fsrepository::FsRepository;
+    use backrub::repository::Repository;
+    use rand::prelude::*;
     use rmp_serde::decode::Error;
     use rmp_serde::Deserializer;
     use serde::Deserialize;
@@ -84,6 +86,34 @@ mod fsrepotest {
                     )]
                 }
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn object_roundtrip_is_successful() -> std::io::Result<()> {
+        let mut data = vec![0; 65536];
+        let temp = assert_fs::TempDir::new().unwrap();
+        let test_path = temp.path().to_str().unwrap();
+        let object_id: String;
+        {
+            let repo: FsRepository = Repository::new(test_path);
+            repo.initialize()?;
+            let mut object = repo.start_object("test").unwrap();
+            let mut rnd = rand::thread_rng();
+            rnd.fill_bytes(&mut data);
+            object.add_block(&data[..4096]).unwrap();
+            object.add_block(&data[4096..8192]).unwrap();
+            object.add_block(&data[8192..16384]).unwrap();
+            object.add_block(&data[16384..65536]).unwrap();
+            object_id = object.finish().unwrap();
+        };
+        // close everything and re-initialize it
+        let repo: FsRepository = Repository::new(test_path);
+        repo.initialize()?;
+        let object = repo.open_object(&object_id).unwrap();
+        let return_data: Vec<u8> = object.blocks().flatten().collect();
+        assert2::assert!(return_data == data);
 
         Ok(())
     }

@@ -58,6 +58,7 @@ dependencies = [
  "assert2",
  "assert_fs",
  "hex",
+ "rand",
  "rmp-serde",
  "serde",
  "sha3",

@@ -1,7 +1,8 @@
 use super::backup::BackupInstance;
 use super::backupobject::BackupObjectWriter;
+use super::fsrepository::FsRepository;
 use super::fssource::{FsBlockSource, FsSource};
-use super::repository::{FsRepository, Repository};
+use super::repository::Repository;
 use std::time::SystemTime;
 
 pub fn make_backup(repository: &str, path: &str, name: &str) {
