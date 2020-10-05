@@ -5,15 +5,12 @@ use super::errors::Result;
 use super::repository::Repository;
 use crate::errors::backrub_error;
 use hex;
-use rmp_serde::decode::Error;
 use rmp_serde::Deserializer;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use std::fs;
 use std::fs::File;
-use std::io;
 use std::path;
-use std::path::Path;
 
 use rmp_serde::Serializer;
 
@@ -69,18 +66,38 @@ impl Repository for FsRepository {
         println!("Finished writing instance {} to repository.", backup.name);
         Ok(())
     }
-    fn open_object(&self, id: &str) -> Result<std::boxed::Box<dyn BackupObjectReader>> {
+    fn open_object(&self, id: &str) -> Result<BackupObject> {
         let object_path: path::PathBuf =
             [&self.path, "blocks", &id[..2], &id[2..]].iter().collect();
         let file = fs::File::open(object_path)
             .or_else(|e| backrub_error("Could not open object", Some(e.into())))?;
         let mut deserializer = Deserializer::new(file);
-        let meta = Deserialize::deserialize(&mut deserializer)
-            .or_else(|e| backrub_error("Could not deserialize object", Some(e.into())))?;
+        Deserialize::deserialize(&mut deserializer)
+            .or_else(|e| backrub_error("Could not deserialize object", Some(e.into())))
+    }
+    fn open_object_reader(
+        &self,
+        meta: BackupObject,
+    ) -> Result<std::boxed::Box<dyn BackupObjectReader>> {
         Ok(Box::new(FsBackupObject {
             repo_path: self.path.clone(),
             meta: meta,
         }))
+    }
+    fn open_instance(&self, name: &str) -> Result<BackupInstance> {
+        let instance_path: path::PathBuf = [&self.path, "instances", name].iter().collect();
+        let p = instance_path.to_str();
+        match p {
+            Some(ip) => {
+                let file = fs::File::open(ip)
+                    .or_else(|e| backrub_error("Could not open instance", Some(e.into())))?;
+                let mut deserializer = Deserializer::new(file);
+                let instance = Deserialize::deserialize(&mut deserializer)
+                    .or_else(|e| backrub_error("Could not deserialize object", Some(e.into())))?;
+                Ok(instance)
+            }
+            None => backrub_error("Could not serialize instance path", None),
+        }
     }
 }
 
@@ -170,7 +187,8 @@ fn create_backrub_infrastructure(path: &str) -> Result<()> {
     let meta_path: path::PathBuf = [&path, "backrub"].iter().collect();
     let file = &mut File::create(meta_path)
         .or_else(|e| backrub_error("Could not create repository marker file", Some(e.into())))?;
-    meta.serialize(&mut Serializer::new(file));
+    meta.serialize(&mut Serializer::new(file))
+        .or_else(|e| backrub_error("Could not serialize repository marker", Some(e.into())))?;
     let block_path: path::PathBuf = [&path, "blocks"].iter().collect();
     fs::create_dir_all(block_path)
         .or_else(|e| backrub_error("Could not create block storage", Some(e.into())))?;

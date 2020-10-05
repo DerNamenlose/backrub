@@ -2,6 +2,7 @@ use super::backup::BackupInstance;
 use super::backupobject::BackupObjectReader;
 use super::backupobject::BackupObjectWriter;
 use super::errors::Result;
+use crate::backupobject::BackupObject;
 
 pub trait Repository {
     /**
@@ -25,9 +26,17 @@ pub trait Repository {
     fn finish_backup(&self, backup: BackupInstance) -> Result<()>;
 
     /**
-     * Open an object in the repository
+     * Open an object based on its ID
      */
-    fn open_object(&self, id: &str) -> Result<Box<dyn BackupObjectReader>>;
+    fn open_object(&self, id: &str) -> Result<BackupObject>;
 
-    // fn open_instance(&self, name: &str) fdsdff;
+    /**
+     * Open an object reader for an object in the repository
+     */
+    fn open_object_reader(&self, object: BackupObject) -> Result<Box<dyn BackupObjectReader>>;
+
+    /**
+     * Load a instance with the given name
+     */
+    fn open_instance(&self, name: &str) -> Result<BackupInstance>;
 }

@@ -3,23 +3,51 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "backrub", about = "A deduplicating backup program")]
-/// The command line arguments for this program
-struct Opts {
+enum Opts {
+    Create(CreateOpts),
+    Restore(RestoreOpts),
+}
+
+#[derive(Debug, StructOpt)]
+#[structopt(
+    name = "create",
+    about = "Create a new backup instance in the repository"
+)]
+struct CreateOpts {
     #[structopt(short, long)]
     /// Activate debug mode
     debug: bool,
-
     /// The path to backup
     path: String,
-
     /// The repository to write the backup to
     repository: String,
-
     /// The name under which to store the backup
     name: String,
 }
 
+#[derive(Debug, StructOpt)]
+#[structopt(name = "restore", about = "Restore information in a backup instance")]
+struct RestoreOpts {
+    #[structopt(short, long)]
+    /// Activate debug mode
+    debug: bool,
+    /// The repository to write the backup to
+    repository: String,
+    /// The name under which to store the backup
+    name: String,
+
+    /// The path to backup
+    path: String,
+}
+
 fn main() {
-    let opts = Opts::from_args();
-    program::make_backup(&opts.repository, &opts.path, &opts.name);
+    let options = Opts::from_args();
+    let program_result = match options {
+        Opts::Create(opts) => program::make_backup(&opts.repository, &opts.path, &opts.name),
+        Opts::Restore(opts) => program::restore_backup(&opts.repository, &opts.path, &opts.name),
+    };
+    match program_result {
+        Ok(_) => (),
+        Err(e) => println!("Operation failed. Reason: {}", e),
+    }
 }

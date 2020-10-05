@@ -115,7 +115,8 @@ mod fsrepotest {
         let repo: FsRepository = Repository::new(test_path);
         repo.initialize()?;
         let object = repo.open_object(&object_id).unwrap();
-        let return_data: Vec<u8> = object.blocks().flatten().collect();
+        let object_reader = repo.open_object_reader(object)?;
+        let return_data: Vec<u8> = object_reader.blocks().flatten().collect();
         assert2::assert!(return_data == data);
 
         Ok(())
@@ -133,7 +134,9 @@ mod fsrepotest {
         let r = repo_t.into_persistent();
         let repo_path = r.path().to_str().unwrap();
 
-        make_backup(repo_path, test_path, "ThisRandomBackup");
+        make_backup(repo_path, test_path, "ThisRandomBackup")?;
+
+        // TODO: restore the backup and compare it
 
         Ok(())
     }
