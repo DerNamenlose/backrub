@@ -11,13 +11,17 @@ structopt = { version = "0.3", default-features = false }
 walkdir = "2"
 rmp-serde = "0.14.4"
 serde = { version = "1.0", features = ["derive"] }
+serde_bytes = "0.11.5"
 sha3 = "0.9.1"
 hex = "0.4.2"
+rand = "0.7.3"
+rust-argon2 = "0.8.2"
+aes-gcm-siv = "0.8.0"
+log = "0.4.11"
 
 [dev-dependencies]
 assert_fs = "1.0.0"
 assert2 = "0.3.3"
-rand = "0.7.3"
 rand_distr = "0.3.0"
 
 [lib]

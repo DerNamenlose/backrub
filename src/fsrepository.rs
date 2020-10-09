@@ -1,10 +1,14 @@
 use super::backup::BackupInstance;
 use super::backupobject::BackupObjectReader;
 use super::backupobject::{BackupObject, BackupObjectWriter};
+use super::errors::backrub_error;
 use super::errors::Result;
 use super::repository::Repository;
-use crate::errors::backrub_error;
+use crate::repository::BackrubRepositoryMeta;
 use hex;
+use log;
+use rand::rngs;
+use rand::RngCore;
 use rmp_serde::Deserializer;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
@@ -16,6 +20,7 @@ use rmp_serde::Serializer;
 
 pub struct FsRepository {
     path: String,
+    repo_info: Option<BackrubRepositoryMeta>,
 }
 
 fn path_for(base: &str, segments: &[&str]) -> path::PathBuf {
@@ -30,7 +35,17 @@ impl Repository for FsRepository {
     fn new(path: &str) -> Self {
         return FsRepository {
             path: String::from(path),
+            repo_info: None,
         };
+    }
+    fn meta(&self) -> Result<&BackrubRepositoryMeta> {
+        match &self.repo_info {
+            Some(info) => Ok(info),
+            None => backrub_error(
+                "Internal error. Tried to access meta data before repository was loaded",
+                None,
+            ),
+        }
     }
     fn initialize(&self) -> Result<()> {
         fs::create_dir_all(&self.path).or_else(|e| {
@@ -41,12 +56,32 @@ impl Repository for FsRepository {
         })?;
         if !is_initialized(&self.path) {
             create_backrub_infrastructure(&self.path)?;
+            Ok(())
+        } else {
+            backrub_error(
+                "Cannot initialize already initialized repository again.",
+                None,
+            )
         }
+    }
+    fn open(&mut self) -> Result<()> {
+        let meta_path: path::PathBuf = [&self.path, "backrub"].iter().collect();
+        let f = fs::File::open(meta_path).or_else(|e| {
+            backrub_error(
+                "Could not open meta file. Is this a backrub repository?",
+                Some(e.into()),
+            )
+        })?;
+        let mut deserializer = Deserializer::new(f);
+        let meta: BackrubRepositoryMeta =
+            Deserialize::deserialize(&mut deserializer).or_else(|e| {
+                backrub_error("Could not deserialize repository meta data", Some(e.into()))
+            })?;
+        self.repo_info = Some(meta);
         Ok(())
     }
-
     fn start_object(&self, name: &str) -> Result<Box<dyn BackupObjectWriter>> {
-        println!("Starting new backup object: {}", name);
+        log::debug!("Starting new backup object: {}", name);
         return Ok(Box::new(FsBackupObject {
             meta: BackupObject {
                 name: String::from(name),
@@ -63,7 +98,7 @@ impl Repository for FsRepository {
         backup
             .serialize(&mut Serializer::new(file))
             .or_else(|e| backrub_error("Could not serialize instance", Some(e.into())))?;
-        println!("Finished writing instance {} to repository.", backup.name);
+        log::info!("Finished writing instance {} to repository.", backup.name);
         Ok(())
     }
     fn open_object(&self, id: &str) -> Result<BackupObject> {
@@ -83,6 +118,15 @@ impl Repository for FsRepository {
             repo_path: self.path.clone(),
             meta: meta,
         }))
+    }
+    fn list_instances(&self) -> Result<Vec<String>> {
+        let instance_path: path::PathBuf = [&self.path, "instances"].iter().collect();
+        let entries = fs::read_dir(instance_path)
+            .or_else(|e| backrub_error("Could not open backup instances", Some(e.into())))?;
+        // Ok(Vec::from(
+        //     entries.filter_map(|entry| entry.ok()?.path().to_str()),
+        // ))
+        Ok(vec![])
     }
     fn open_instance(&self, name: &str) -> Result<BackupInstance> {
         let instance_path: path::PathBuf = [&self.path, "instances", name].iter().collect();
@@ -125,7 +169,7 @@ impl FsBackupObject {
 impl BackupObjectWriter for FsBackupObject {
     fn add_block(&mut self, data: &[u8]) -> Result<std::string::String> {
         let id = self.write_block(data)?;
-        println!("Added block of size {} with id {}", data.len(), id);
+        log::debug!("Added block of size {} with id {}", data.len(), id);
         self.meta.blocks.push(id.clone());
         Ok(id)
     }
@@ -135,7 +179,9 @@ impl BackupObjectWriter for FsBackupObject {
         self.meta
             .serialize(&mut Serializer::new(&mut buf))
             .or_else(|e| backrub_error("Could not serialize meta data", Some(e.into())))?;
-        self.write_block(&buf)
+        let result = self.write_block(&buf)?;
+        log::info!("Stored {} in repository", self.meta.name);
+        Ok(result)
     }
 }
 
@@ -180,9 +226,12 @@ fn is_initialized(path: &str) -> bool {
 }
 
 fn create_backrub_infrastructure(path: &str) -> Result<()> {
+    let (iterations, salt) = initialize_key_derivation("SomeRandomCalibrationKey");
     let meta = BackrubRepositoryMeta {
         version: 1,
         title: String::from("backrub backup repository."),
+        salt: salt,
+        iterations: iterations,
     };
     let meta_path: path::PathBuf = [&path, "backrub"].iter().collect();
     let file = &mut File::create(meta_path)
@@ -198,19 +247,33 @@ fn create_backrub_infrastructure(path: &str) -> Result<()> {
     Ok(())
 }
 
+fn initialize_key_derivation(key: &str) -> (u16, Vec<u8>) {
+    log::debug!("Calibrating key derivation function");
+    let mut time_factor: u16 = 3;
+    let mut salt = [0; 16];
+    rngs::OsRng.fill_bytes(&mut salt);
+    loop {
+        let start = std::time::Instant::now();
+        let _ = super::crypto::derive_key(key.as_ref(), &salt, time_factor as u32);
+        let time = std::time::Instant::now().duration_since(start);
+        let current_time_factor = 1000.0 / time.as_millis() as f32;
+        if time.as_millis() > 1000 {
+            break;
+        }
+        if current_time_factor < 1.1 {
+            time_factor += 1;
+        } else {
+            time_factor = ((time_factor as f32) * current_time_factor) as u16;
+        }
+    }
+    log::debug!("Iterations {}", time_factor);
+    (time_factor, Vec::from(salt))
+}
+
 #[derive(Debug)]
 pub struct BackrubBlock {
     pub id: String,
     pub data: Vec<u8>,
-}
-
-/**
- * The main header definition for a repository
- */
-#[derive(Serialize, Deserialize)]
-struct BackrubRepositoryMeta {
-    version: u32,
-    title: String,
 }
 
 /**
