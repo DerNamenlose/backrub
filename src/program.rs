@@ -22,12 +22,9 @@ pub fn initialize_repository(repository: &str) -> Result<()> {
 pub fn make_backup(repository: &str, path: &str, name: &str) -> Result<()> {
     let mut repo: FsRepository = Repository::new(&repository);
     repo.open()?;
-    // TODO generate the repo key from the stored data
-    let derived_key = super::crypto::derive_key(
-        b"TestPassword",
-        &repo.meta()?.salt,
-        repo.meta()?.iterations as u32,
-    );
+    let key = read_key()?;
+    let derived_key =
+        super::crypto::derive_key(&key, &repo.meta()?.salt, repo.meta()?.iterations as u32);
     let cipher = Cipher::new(derived_key);
     let source: FsSource = FsSource::new(&path);
 
@@ -91,8 +88,9 @@ pub fn restore_backup(repository: &str, path: &str, name: &str) -> Result<()> {
     let mut repository: FsRepository = Repository::new(repository);
     repository.open()?;
     let instance = repository.open_instance(name)?;
+    let key = read_key()?;
     let derived_key = super::crypto::derive_key(
-        b"TestPassword",
+        &key,
         &repository.meta()?.salt,
         repository.meta()?.iterations as u32,
     );
@@ -189,4 +187,10 @@ fn backup_blocks(
     }
     log::debug!("Finished copying blocks");
     Ok(())
+}
+
+fn read_key() -> Result<Vec<u8>> {
+    let key = rpassword::prompt_password_stdout("Repository password: ")
+        .or_else(|e| backrub_error("Could not read password.", Some(e.into())))?;
+    Ok(Vec::from(key.as_bytes()))
 }
