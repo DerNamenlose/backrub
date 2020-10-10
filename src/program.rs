@@ -52,11 +52,11 @@ pub fn make_backup(repository: &str, path: &str, name: &str) -> Result<()> {
                     let copy_result = backup_blocks(blocks, object.as_mut(), &cipher);
                     match copy_result {
                         Ok(()) => {
-                            println!("Adding object descriptor to repository");
+                            log::debug!("Adding object descriptor to repository");
                             let finish_result = object.finish();
                             match finish_result {
                                 Ok(id) => {
-                                    println!("New object: {}", id);
+                                    log::debug!("New object: {}", id);
                                     backup_instance.entries.push(id);
                                 }
                                 Err(message) => println!(
@@ -73,18 +73,24 @@ pub fn make_backup(repository: &str, path: &str, name: &str) -> Result<()> {
                         ),
                     }
                 }
-                (_, _) => println!("Could not copy source blocks into target object"),
+                (_, _) => log::error!("Could not copy source blocks into target object"),
             }
         }
     }
-    println!("Finishing backup");
+    log::info!("Finishing backup");
     repo.finish_backup(backup_instance)
         .or_else(|e| backrub_error("Could not finish backup instance", Some(e.into())))?;
-    println!("Finished backup");
+    log::info!("Finished backup");
     Ok(())
 }
 
 pub fn restore_backup(repository: &str, path: &str, name: &str) -> Result<()> {
+    log::info!(
+        "Restoring {} from repository {} to {}",
+        name,
+        repository,
+        path
+    );
     let mut repository: FsRepository = Repository::new(repository);
     repository.open()?;
     let instance = repository.open_instance(name)?;
@@ -102,7 +108,7 @@ pub fn restore_backup(repository: &str, path: &str, name: &str) -> Result<()> {
             Ok(object) => {
                 let restore_result = restore_object(&repository, object, path, &cipher);
                 match restore_result {
-                    Ok(_) => (),
+                    Ok(_) => log::debug!("Successfully restored object"),
                     Err(e) => errors.push(e),
                 }
             }
@@ -111,7 +117,15 @@ pub fn restore_backup(repository: &str, path: &str, name: &str) -> Result<()> {
             }
         }
     }
-    Ok(())
+    if errors.len() != 0 {
+        log::error!("{} error(s) occured during restore", errors.len());
+        for error in errors {
+            log::error!("{}", error);
+        }
+        backrub_error("Restore unsuccessful", None)
+    } else {
+        Ok(())
+    }
 }
 
 pub fn list_instances(repo: &str) -> Result<()> {
@@ -130,7 +144,7 @@ fn restore_object(
         message: "Object has no parent directory",
         cause: None,
     })?;
-    println!(
+    log::debug!(
         "Restoring {} to {}",
         &object.name,
         restore_path.as_path().to_str().unwrap()
@@ -141,7 +155,9 @@ fn restore_object(
         .or_else(|e| backrub_error("Could not create output file", Some(e.into())))?;
     let object_reader = repo.open_object_reader(object)?;
     for block in object_reader.blocks() {
+        log::debug!("Decoding serialized data block of size {}", block.len());
         let data_block = decode_block(block, cipher)?;
+        log::debug!("Contained block of size {}", data_block.len());
         file.write(&data_block)
             .or_else(|e| backrub_error("Could not write to output file", Some(e.into())))?;
     }

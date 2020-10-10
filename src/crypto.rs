@@ -35,11 +35,9 @@ impl Cipher {
         })
     }
     pub fn decrypt_block(&self, block: CryptoBlock) -> Result<Vec<u8>> {
-        let decrypted = self
-            .cipher
+        self.cipher
             .decrypt(GenericArray::from_slice(&block.nonce), block.data.as_ref())
-            .or_else(|e| backrub_error("Decrypting block failed", None))?;
-        return Ok(decrypted);
+            .or_else(|_| backrub_error("Could not decrypt block.", None))
     }
 }
 

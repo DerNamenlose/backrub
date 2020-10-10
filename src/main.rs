@@ -48,15 +48,15 @@ struct RestoreOpts {
     path: String,
 }
 
-fn main() {
+fn main() -> backrub::errors::Result<()> {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
     let options = Opts::from_args();
     let program_result = match options {
         Opts::Init(opts) => program::initialize_repository(&opts.repository),
         Opts::Create(opts) => program::make_backup(&opts.repository, &opts.path, &opts.name),
         Opts::Restore(opts) => program::restore_backup(&opts.repository, &opts.path, &opts.name),
     };
-    match program_result {
-        Ok(_) => (),
-        Err(e) => println!("Operation failed. Reason: {}", e),
-    }
+    program_result
 }
