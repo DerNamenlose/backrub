@@ -1,4 +1,6 @@
+use backrub::create;
 use backrub::program;
+use backrub::restore;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -55,8 +57,8 @@ fn main() -> backrub::errors::Result<()> {
     let options = Opts::from_args();
     let program_result = match options {
         Opts::Init(opts) => program::initialize_repository(&opts.repository),
-        Opts::Create(opts) => program::make_backup(&opts.repository, &opts.path, &opts.name),
-        Opts::Restore(opts) => program::restore_backup(&opts.repository, &opts.path, &opts.name),
+        Opts::Create(opts) => create::make_backup(&opts.repository, &opts.path, &opts.name),
+        Opts::Restore(opts) => restore::restore_backup(&opts.repository, &opts.path, &opts.name),
     };
     program_result
 }

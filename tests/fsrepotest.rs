@@ -3,10 +3,11 @@ mod fsrepotest {
     use assert2;
     use assert_fs::prelude::*;
     use backrub::backupobject::BackupObject;
+    use backrub::create::make_backup;
     use backrub::errors::Result;
     use backrub::fsrepository::FsRepository;
-    use backrub::program::{make_backup, restore_backup};
     use backrub::repository::Repository;
+    use backrub::restore::restore_backup;
     use rand::prelude::*;
     use rand_distr::Exp;
     use rmp_serde::decode::Error;
