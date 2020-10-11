@@ -244,6 +244,9 @@ fn create_backrub_infrastructure(path: &str) -> Result<()> {
     let instance_path: path::PathBuf = [&path, "instances"].iter().collect();
     fs::create_dir_all(instance_path)
         .or_else(|e| backrub_error("Could not create instance storage", Some(e.into())))?;
+    let key_path: path::PathBuf = [&path, "keys"].iter().collect();
+    fs::create_dir_all(key_path)
+        .or_else(|e| backrub_error("Could not create key storage", Some(e.into())))?;
     Ok(())
 }
 

@@ -26,6 +26,7 @@ mod fsrepotest {
         assert2::assert!(Path::is_file(temp.child("backrub").path()));
         assert2::assert!(Path::is_dir(temp.child("blocks").path()));
         assert2::assert!(Path::is_dir(temp.child("instances").path()));
+        assert2::assert!(Path::is_dir(temp.child("keys").path()));
 
         Ok(())
     }
@@ -112,8 +113,8 @@ mod fsrepotest {
             object_id = object.finish().unwrap();
         };
         // close everything and re-initialize it
-        let repo: FsRepository = Repository::new(test_path);
-        repo.initialize()?;
+        let mut repo: FsRepository = Repository::new(test_path);
+        repo.open()?;
         let object = repo.open_object(&object_id).unwrap();
         let object_reader = repo.open_object_reader(object)?;
         let return_data: Vec<u8> = object_reader.blocks().flatten().collect();
@@ -134,6 +135,9 @@ mod fsrepotest {
         let r = repo_t.into_persistent();
         let repo_path = r.path().to_str().unwrap();
 
+        let repo: FsRepository = Repository::new(repo_path);
+        repo.initialize()?;
+        std::env::set_var("BACKRUB_KEY", "MyTestKey");
         make_backup(repo_path, test_path, "ThisRandomBackup")?;
 
         // TODO: restore the backup and compare it
