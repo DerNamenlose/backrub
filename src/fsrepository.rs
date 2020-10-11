@@ -91,8 +91,7 @@ impl Repository for FsRepository {
         }));
     }
     fn finish_backup(&self, backup: BackupInstance) -> Result<()> {
-        let backup_file_name = format!("{}-{}", backup.time, backup.name);
-        let instance_path = path_for(&self.path, &["instances", &backup_file_name]);
+        let instance_path = path_for(&self.path, &["instances", &backup.name]);
         let file = fs::File::create(instance_path)
             .or_else(|e| backrub_error("Could not create instance file", Some(e.into())))?;
         backup

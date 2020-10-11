@@ -5,7 +5,7 @@ mod fsrepotest {
     use backrub::backupobject::BackupObject;
     use backrub::errors::Result;
     use backrub::fsrepository::FsRepository;
-    use backrub::program::make_backup;
+    use backrub::program::{make_backup, restore_backup};
     use backrub::repository::Repository;
     use rand::prelude::*;
     use rand_distr::Exp;
@@ -125,8 +125,8 @@ mod fsrepotest {
 
     #[test]
     fn instance_roundtrip_is_successful() -> Result<()> {
-        let source = assert_fs::TempDir::new().unwrap();
-        let test_path = source.path().to_str().unwrap();
+        let source_dir = assert_fs::TempDir::new().unwrap();
+        let test_path = source_dir.path().to_str().unwrap();
         print!("Initializing source directory... ");
         setup_source_dir(test_path);
         println!("Done.");
@@ -140,7 +140,61 @@ mod fsrepotest {
         std::env::set_var("BACKRUB_KEY", "MyTestKey");
         make_backup(repo_path, test_path, "ThisRandomBackup")?;
 
-        // TODO: restore the backup and compare it
+        let restore_dir = assert_fs::TempDir::new().unwrap();
+        let restore_path = restore_dir.path().to_str().unwrap();
+        println!("Restoring backup...");
+        restore_backup(repo_path, restore_path, "ThisRandomBackup")?;
+
+        println!("Comparing source and restored path...");
+        let mut all_source_files: Vec<String> = walkdir::WalkDir::new(&test_path)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|p| p.path().is_file())
+            .map(|e| String::from(e.path().strip_prefix(&test_path).unwrap().to_str().unwrap()))
+            .collect();
+        let mut all_restored_files: Vec<String> = walkdir::WalkDir::new(&restore_path)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|p| p.path().is_file())
+            .map(|e| {
+                String::from(
+                    e.path()
+                        .strip_prefix(&restore_path)
+                        .unwrap()
+                        .to_str()
+                        .unwrap(),
+                )
+            })
+            .collect();
+
+        assert2::assert!(all_source_files.len() != 0);
+        assert2::assert!(all_restored_files.len() != 0);
+        all_source_files.sort();
+        all_restored_files.sort();
+        assert2::assert!(all_source_files.eq(&all_restored_files));
+
+        assert2::assert!(all_source_files.iter().zip(all_restored_files).all(
+            |(source, restored)| {
+                let s = source_dir.child(source);
+                let sf = s.path().to_str().unwrap();
+                let r = restore_dir.child(restored);
+                let rf = r.path().to_str().unwrap();
+                let source_file = fs::read(&sf);
+                let restored_file = fs::read(&rf);
+                if source_file.is_err() || restored_file.is_err() {
+                    println!("Could not read one of the files: {} {}", &sf, &rf);
+                    false
+                } else {
+                    let is_same = source_file.unwrap() == restored_file.unwrap();
+                    if !is_same {
+                        println!("File contents differ: {} - {}", &sf, &rf);
+                        false
+                    } else {
+                        true
+                    }
+                }
+            }
+        ));
 
         Ok(())
     }
@@ -164,5 +218,7 @@ mod fsrepotest {
             let p: std::path::PathBuf = [path, &parent_dir, &file].iter().collect();
             fs::write(p, data).unwrap();
         }
+        let zero_size_file: std::path::PathBuf = [path, "zero-file"].iter().collect();
+        fs::File::create(zero_size_file).unwrap();
     }
 }
