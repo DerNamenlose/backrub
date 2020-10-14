@@ -16,10 +16,21 @@ pub struct Cipher {
     cipher: Aes256GcmSiv,
 }
 
+/**
+ * Key type used for actually encrypting data. This is a more temporary
+ * type of key, that may be subject to a key schedule (as opposed to the
+ * master key or the user input key, which are permanent)
+ */
+#[derive(Clone)]
+pub struct DataEncryptionKey {
+    pub created_at: u64,
+    pub value: Vec<u8>,
+}
+
 impl Cipher {
-    pub fn new(key: Vec<u8>) -> Self {
+    pub fn new(key: &DataEncryptionKey) -> Self {
         Cipher {
-            cipher: Aes256GcmSiv::new(GenericArray::from_slice(&key)),
+            cipher: Aes256GcmSiv::new(GenericArray::from_slice(&key.value)),
         }
     }
     pub fn encrypt_block(&self, block: Vec<u8>) -> Result<CryptoBlock> {
@@ -41,9 +52,42 @@ impl Cipher {
     }
 }
 
-pub fn derive_key(key: &[u8], salt: &[u8], iterations: u32) -> Vec<u8> {
+/**
+ * Type used for input key, i.e. passwords etc.
+ *
+ * This is to clearly distinguish between user input keys, master keys (used for key encryption)
+ * and data encryption keys (used for actually encrypting data)
+ */
+pub struct InputKey(Vec<u8>);
+
+impl From<&[u8]> for InputKey {
+    fn from(key_data: &[u8]) -> Self {
+        Self(Vec::from(key_data))
+    }
+}
+
+/**
+ * Type for a master key as derived from a user input key
+ */
+pub struct MasterKey(Vec<u8>);
+
+impl From<&MasterKey> for DataEncryptionKey {
+    /**
+     * explicitly use the master key as a data encryption key (e.g. for key encryption)
+     */
+    fn from(master_key: &MasterKey) -> Self {
+        DataEncryptionKey {
+            value: master_key.0.clone(),
+            created_at: 0,
+        }
+    }
+}
+
+pub fn derive_key(key: &InputKey, salt: &[u8], iterations: u32) -> Result<MasterKey> {
     let mut config = argon2::Config::default();
     config.variant = argon2::Variant::Argon2id;
     config.time_cost = iterations;
-    argon2::hash_raw(key, &salt, &config).unwrap()
+    argon2::hash_raw(&key.0, &salt, &config)
+        .map(|key| MasterKey(key))
+        .or_else(|e| backrub_error("Could not derive master key", Some(e.into())))
 }

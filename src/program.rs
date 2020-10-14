@@ -1,21 +1,12 @@
-use super::backup::BackupInstance;
-use super::backupobject::BackupObject;
-use super::backupobject::BackupObjectWriter;
-use super::crypto::{Cipher, CryptoBlock};
-use super::errors::backrub_error;
 use super::errors::Result;
 use super::fsrepository::FsRepository;
-use super::fssource::{FsBlockSource, FsSource};
 use super::repository::Repository;
-use crate::common::InternalCryptoBlock;
-use rmp_serde::Deserializer;
-use rmp_serde::Serializer;
-use serde::{Deserialize, Serialize};
-use std::time::SystemTime;
+use crate::common::read_key;
 
 pub fn initialize_repository(repository: &str) -> Result<()> {
     let repo: FsRepository = Repository::new(&repository);
-    repo.initialize()?;
+    let user_key = read_key()?;
+    repo.initialize(user_key)?;
     Ok(())
 }
 pub fn list_instances(repo: &str) -> Result<()> {

@@ -19,11 +19,9 @@ use std::time::SystemTime;
 
 pub fn make_backup(repository: &str, path: &str, name: &str) -> Result<()> {
     let mut repo: FsRepository = Repository::new(&repository);
-    repo.open()?;
     let key = read_key()?;
-    let derived_key =
-        super::crypto::derive_key(&key, &repo.meta()?.salt, repo.meta()?.iterations as u32);
-    let cipher = Cipher::new(derived_key);
+    repo.open(key)?;
+    let cipher = Cipher::new(repo.current_key()?);
     let source: FsSource = FsSource::new(&path);
 
     let now = SystemTime::now()

@@ -4,6 +4,7 @@ mod fsrepotest {
     use assert_fs::prelude::*;
     use backrub::backupobject::BackupObject;
     use backrub::create::make_backup;
+    use backrub::crypto::InputKey;
     use backrub::errors::Result;
     use backrub::fsrepository::FsRepository;
     use backrub::repository::Repository;
@@ -22,12 +23,19 @@ mod fsrepotest {
         let temp = assert_fs::TempDir::new().unwrap();
         let test_path = temp.path().to_str().unwrap();
         let repo: FsRepository = Repository::new(test_path);
-        repo.initialize()?;
+        repo.initialize(InputKey::from(b"MyTestKey" as &[u8]))?;
 
         assert2::assert!(Path::is_file(temp.child("backrub").path()));
         assert2::assert!(Path::is_dir(temp.child("blocks").path()));
         assert2::assert!(Path::is_dir(temp.child("instances").path()));
         assert2::assert!(Path::is_dir(temp.child("keys").path()));
+        assert2::assert!(
+            fs::read_dir(temp.child("keys").path())
+                .unwrap()
+                .collect::<Vec<std::io::Result<fs::DirEntry>>>()
+                .len()
+                == 1
+        );
 
         Ok(())
     }
@@ -37,7 +45,7 @@ mod fsrepotest {
         let temp = assert_fs::TempDir::new().unwrap();
         let test_path = temp.path().to_str().unwrap();
         let repo: FsRepository = Repository::new(test_path);
-        repo.initialize()?;
+        repo.initialize(InputKey::from(b"MyTestKey" as &[u8]))?;
         let mut object = repo.start_object("test").unwrap();
         let string = "This is a test";
         object.add_block(string.as_bytes()).unwrap();
@@ -61,7 +69,7 @@ mod fsrepotest {
         let temp = assert_fs::TempDir::new().unwrap();
         let test_path = temp.path().to_str().unwrap();
         let repo: FsRepository = Repository::new(test_path);
-        repo.initialize()?;
+        repo.initialize(InputKey::from(b"MyTestKey" as &[u8]))?;
         let mut object = repo.start_object("test").unwrap();
         let string = "This is a test";
         object.add_block(string.as_bytes()).unwrap();
@@ -103,7 +111,7 @@ mod fsrepotest {
         let object_id: String;
         {
             let repo: FsRepository = Repository::new(test_path);
-            repo.initialize()?;
+            repo.initialize(InputKey::from(b"MyTestKey" as &[u8]))?;
             let mut object = repo.start_object("test").unwrap();
             let mut rnd = rand::thread_rng();
             rnd.fill_bytes(&mut data);
@@ -115,7 +123,7 @@ mod fsrepotest {
         };
         // close everything and re-initialize it
         let mut repo: FsRepository = Repository::new(test_path);
-        repo.open()?;
+        repo.open(InputKey::from(b"MyTestKey" as &[u8]))?;
         let object = repo.open_object(&object_id).unwrap();
         let object_reader = repo.open_object_reader(object)?;
         let return_data: Vec<u8> = object_reader.blocks().flatten().collect();
@@ -137,7 +145,7 @@ mod fsrepotest {
         let repo_path = r.path().to_str().unwrap();
 
         let repo: FsRepository = Repository::new(repo_path);
-        repo.initialize()?;
+        repo.initialize(InputKey::from(b"MyTestKey" as &[u8]))?;
         std::env::set_var("BACKRUB_KEY", "MyTestKey");
         make_backup(repo_path, test_path, "ThisRandomBackup")?;
 
@@ -196,6 +204,23 @@ mod fsrepotest {
                 }
             }
         ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn stored_keys_are_loaded_by_the_repo() -> Result<()> {
+        let repo_dir = assert_fs::TempDir::new().unwrap();
+        let repo_path = repo_dir.path().to_str().unwrap();
+        {
+            let repo: FsRepository = Repository::new(repo_path);
+            repo.initialize(InputKey::from(b"ThisIsATest" as &[u8]))?;
+        }
+
+        let mut repo: FsRepository = Repository::new(repo_path);
+        repo.open(InputKey::from(b"ThisIsATest" as &[u8]))?;
+
+        assert2::assert!(repo.keys()?.len() == 1);
 
         Ok(())
     }

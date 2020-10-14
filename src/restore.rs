@@ -19,15 +19,11 @@ pub fn restore_backup(repository: &str, path: &str, name: &str) -> Result<()> {
         path
     );
     let mut repository: FsRepository = Repository::new(repository);
-    repository.open()?;
-    let instance = repository.open_instance(name)?;
     let key = read_key()?;
-    let derived_key = super::crypto::derive_key(
-        &key,
-        &repository.meta()?.salt,
-        repository.meta()?.iterations as u32,
-    );
-    let cipher = Cipher::new(derived_key);
+    repository.open(key)?;
+    let current_key = repository.current_key()?;
+    let cipher = Cipher::new(current_key);
+    let instance = repository.open_instance(name)?;
     let mut errors = vec![];
     for entry in instance.entries {
         let object_result = repository.open_object(&entry);

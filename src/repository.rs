@@ -3,7 +3,10 @@ use super::backupobject::BackupObjectReader;
 use super::backupobject::BackupObjectWriter;
 use super::errors::Result;
 use crate::backupobject::BackupObject;
+use crate::crypto::DataEncryptionKey;
+use crate::crypto::InputKey;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 /**
  * Meta information of a repository
  */
@@ -28,11 +31,20 @@ pub trait Repository {
      * Initialize the given backup repository, i.e. check whether anything needs to be set up in the
      * directory
      */
-    fn initialize(&self) -> Result<()>;
+    fn initialize(&self, input_key: InputKey) -> Result<()>;
     /**
      * open this repository
      */
-    fn open(&mut self) -> Result<()>;
+    fn open(&mut self, input_key: InputKey) -> Result<()>;
+    /**
+     * get the keys loaded in this repository
+     */
+    fn keys(&self) -> Result<&HashMap<u64, DataEncryptionKey>>;
+    /**
+     * Get the currently valid data encryption key for the repository.
+     * This will be the most recently generated key.
+     */
+    fn current_key(&self) -> Result<&DataEncryptionKey>;
     /**
      * Start a new backup object in the repository
      */

@@ -1,11 +1,12 @@
+use super::crypto::InputKey;
 use super::errors::{backrub_error, Result};
 use serde::{Deserialize, Serialize};
 
-pub fn read_key() -> Result<Vec<u8>> {
+pub fn read_key() -> Result<InputKey> {
     let key = std::env::var("BACKRUB_KEY")
         .or_else(|_| rpassword::prompt_password_stdout("Repository password: "))
         .or_else(|e| backrub_error("Could not read password.", Some(e.into())))?;
-    Ok(Vec::from(key.as_bytes()))
+    Ok(InputKey::from(key.as_bytes()))
 }
 
 /**
