@@ -32,6 +32,5 @@ pub trait BackupObjectReader {
 
 #[derive(Deserialize, Serialize, Eq, PartialEq)]
 pub struct BackupObject {
-    pub name: String,
     pub blocks: Vec<String>,
 }

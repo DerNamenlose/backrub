@@ -6,6 +6,7 @@ use super::errors::Result;
 use super::fsrepository::FsRepository;
 use super::fssource::FsSource;
 use super::repository::Repository;
+use crate::backup::BackupEntry;
 use crate::backupobject::BackupObjectWriter;
 use crate::common::InternalCryptoBlock;
 use crate::fssource::FsBlockSource;
@@ -31,7 +32,6 @@ pub fn make_backup(repository: &str, path: &str, name: &str) -> Result<()> {
         name: String::from(name),
         entries: Vec::new(),
         time: now.as_secs(),
-        key: String::new(),
     };
     for file in source.objects() {
         let source_name = file.path().to_str();
@@ -53,7 +53,10 @@ pub fn make_backup(repository: &str, path: &str, name: &str) -> Result<()> {
                             match finish_result {
                                 Ok(id) => {
                                     log::debug!("New object: {}", id);
-                                    backup_instance.entries.push(id);
+                                    backup_instance.entries.push(BackupEntry {
+                                        name: String::from(source_name_relative.unwrap()),
+                                        block_list_id: id,
+                                    });
                                 }
                                 Err(message) => println!(
                                     "Could not finish object {}. Reason: {}",

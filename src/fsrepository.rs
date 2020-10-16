@@ -4,6 +4,7 @@ use super::backupobject::{BackupObject, BackupObjectWriter};
 use super::errors::backrub_error;
 use super::errors::Result;
 use super::repository::Repository;
+use crate::backup::BackupEntry;
 use crate::crypto::derive_key;
 use crate::crypto::Cipher;
 use crate::crypto::CryptoBlock;
@@ -99,9 +100,10 @@ impl Repository for FsRepository {
     fn start_object(&self, name: &str) -> Result<Box<dyn BackupObjectWriter>> {
         log::debug!("Starting new backup object: {}", name);
         return Ok(Box::new(FsBackupObject {
-            meta: BackupObject {
+            meta: BackupObject { blocks: vec![] },
+            entry: BackupEntry {
                 name: String::from(name),
-                blocks: vec![],
+                block_list_id: String::new(),
             },
             repo_path: String::from(&self.path),
         }));
@@ -129,7 +131,7 @@ impl Repository for FsRepository {
         &self,
         meta: BackupObject,
     ) -> Result<std::boxed::Box<dyn BackupObjectReader>> {
-        Ok(Box::new(FsBackupObject {
+        Ok(Box::new(FsBackupObjectReader {
             repo_path: self.path.clone(),
             meta: meta,
         }))
@@ -204,6 +206,7 @@ fn load_keys(base_path: &str, master_key: &MasterKey) -> Result<Vec<(u64, DataEn
 
 pub struct FsBackupObject {
     meta: BackupObject,
+    entry: BackupEntry,
     repo_path: String,
 }
 
@@ -237,7 +240,6 @@ impl BackupObjectWriter for FsBackupObject {
             .serialize(&mut Serializer::new(&mut buf))
             .or_else(|e| backrub_error("Could not serialize meta data", Some(e.into())))?;
         let result = self.write_block(&buf)?;
-        log::info!("Stored {} in repository", self.meta.name);
         Ok(result)
     }
 }
@@ -268,7 +270,12 @@ impl<'a> Iterator for FsBackupObjectBlockSource<'a> {
     }
 }
 
-impl BackupObjectReader for FsBackupObject {
+pub struct FsBackupObjectReader {
+    meta: BackupObject,
+    repo_path: String,
+}
+
+impl BackupObjectReader for FsBackupObjectReader {
     fn blocks<'a>(&'a self) -> Box<dyn Iterator<Item = Vec<u8>> + 'a> {
         Box::new(FsBackupObjectBlockSource::new(
             String::from(&self.repo_path),

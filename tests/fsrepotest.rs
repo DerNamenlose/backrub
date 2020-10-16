@@ -93,7 +93,6 @@ mod fsrepotest {
         assert2::assert!(
             structure
                 == BackupObject {
-                    name: String::from("test"),
                     blocks: vec![String::from(
                         "3c3b66edcfe51f5b15bf372f61e25710ffc1ad3c0e3c60d832b42053a96772cf"
                     )]

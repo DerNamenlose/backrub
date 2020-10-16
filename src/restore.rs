@@ -1,10 +1,10 @@
-use super::backupobject::BackupObject;
 use super::common::read_key;
 use super::crypto::Cipher;
 use super::errors::backrub_error;
 use super::errors::Result;
 use super::fsrepository::FsRepository;
 use super::repository::Repository;
+use crate::backup::BackupEntry;
 use crate::common::InternalCryptoBlock;
 use crate::crypto::CryptoBlock;
 use rmp_serde::Deserializer;
@@ -26,18 +26,10 @@ pub fn restore_backup(repository: &str, path: &str, name: &str) -> Result<()> {
     let instance = repository.open_instance(name)?;
     let mut errors = vec![];
     for entry in instance.entries {
-        let object_result = repository.open_object(&entry);
-        match object_result {
-            Ok(object) => {
-                let restore_result = restore_object(&repository, object, path, &cipher);
-                match restore_result {
-                    Ok(_) => log::debug!("Successfully restored object"),
-                    Err(e) => errors.push(e),
-                }
-            }
-            Err(e) => {
-                errors.push(e);
-            }
+        let restore_result = restore_entry(&repository, &entry, path, &cipher);
+        match restore_result {
+            Ok(_) => log::debug!("Successfully restored object"),
+            Err(e) => errors.push(e),
         }
     }
     if errors.len() != 0 {
@@ -51,26 +43,27 @@ pub fn restore_backup(repository: &str, path: &str, name: &str) -> Result<()> {
     }
 }
 
-fn restore_object(
+fn restore_entry(
     repo: &FsRepository,
-    object: BackupObject,
+    entry: &BackupEntry,
     base_path: &str,
     cipher: &Cipher,
 ) -> Result<()> {
-    let restore_path: std::path::PathBuf = [base_path, &object.name].iter().collect();
+    let restore_path: std::path::PathBuf = [base_path, &entry.name].iter().collect();
     let parent_path = restore_path.parent().ok_or(super::errors::Error {
         message: "Object has no parent directory",
         cause: None,
     })?;
     log::debug!(
         "Restoring {} to {}",
-        &object.name,
+        &entry.name,
         restore_path.as_path().to_str().unwrap()
     );
     std::fs::create_dir_all(parent_path)
         .or_else(|e| backrub_error("Could not create parent path", Some(e.into())))?;
     let mut file = std::fs::File::create(&restore_path)
         .or_else(|e| backrub_error("Could not create output file", Some(e.into())))?;
+    let object = repo.open_object(&entry.block_list_id)?;
     let object_reader = repo.open_object_reader(object)?;
     for block in object_reader.blocks() {
         log::debug!("Decoding serialized data block of size {}", block.len());
