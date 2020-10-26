@@ -1,3 +1,4 @@
+use crate::repository::BackupBlockId;
 use serde::{Deserialize, Serialize};
 
 /**
@@ -7,7 +8,19 @@ use serde::{Deserialize, Serialize};
 pub struct BackupInstance {
     pub name: String,
     pub time: u64,
-    pub entries: Vec<BackupEntry>,
+    pub entry_list_id: BackupBlockId,
+}
+
+/**
+ * The list of backup entries for this
+ */
+#[derive(Serialize, Deserialize)]
+pub struct EntryList(pub Vec<BackupEntry>);
+
+impl From<Vec<BackupEntry>> for EntryList {
+    fn from(entries: Vec<BackupEntry>) -> Self {
+        Self(entries)
+    }
 }
 
 /**
@@ -16,5 +29,5 @@ pub struct BackupInstance {
 #[derive(Serialize, Deserialize)]
 pub struct BackupEntry {
     pub name: String,
-    pub block_list_id: String,
+    pub block_list_id: BackupBlockId,
 }

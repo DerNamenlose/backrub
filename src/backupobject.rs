@@ -1,4 +1,5 @@
 use super::errors::Result;
+use crate::repository::BackupBlockId;
 use serde::{Deserialize, Serialize};
 
 /**
@@ -32,5 +33,5 @@ pub trait BackupObjectReader {
 
 #[derive(Deserialize, Serialize, Eq, PartialEq)]
 pub struct BackupObject {
-    pub blocks: Vec<String>,
+    pub blocks: Vec<BackupBlockId>,
 }

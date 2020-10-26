@@ -1,3 +1,4 @@
+use crate::errors::backrub_error;
 use std::fs::File;
 use std::io::Read;
 use walkdir::DirEntry;
@@ -25,9 +26,10 @@ impl FsSource {
         }
     }
 
-    pub fn open_entry(&self, path: &str) -> std::io::Result<FsBlockSource> {
+    pub fn open_entry(&self, path: &str) -> crate::errors::Result<FsBlockSource> {
         Ok(FsBlockSource {
-            file: File::open(&path)?,
+            file: File::open(&path)
+                .or_else(|e| backrub_error("Could not open entry", Some(e.into())))?,
         })
     }
 }
