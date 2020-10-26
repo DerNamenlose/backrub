@@ -9,12 +9,7 @@
             "request": "launch",
             "name": "Debug unit tests in library 'backrub'",
             "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=backrub"
-                ],
+                "args": ["test", "--no-run", "--lib", "--package=backrub"],
                 "filter": {
                     "name": "backrub",
                     "kind": "lib"
@@ -28,11 +23,7 @@
             "request": "launch",
             "name": "Debug executable 'backrub'",
             "cargo": {
-                "args": [
-                    "build",
-                    "--bin=backrub",
-                    "--package=backrub"
-                ],
+                "args": ["build", "--bin=backrub", "--package=backrub"],
                 "filter": {
                     "name": "backrub",
                     "kind": "bin"
@@ -73,6 +64,25 @@
                 ],
                 "filter": {
                     "name": "fsrepotest",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'cryptotest'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=cryptotest",
+                    "--package=backrub"
+                ],
+                "filter": {
+                    "name": "cryptotest",
                     "kind": "test"
                 }
             },
