@@ -5,6 +5,7 @@ use super::fsrepository::FsRepository;
 use super::repository::Repository;
 use crate::backup::BackupEntry;
 use crate::crypto::decode_keyed_block;
+use crate::os::unix::set_meta_data;
 use std::io::Cursor;
 use std::io::Write;
 
@@ -65,5 +66,6 @@ fn restore_entry(repo: &FsRepository, entry: &BackupEntry, base_path: &str) -> R
         file.write(&data_block)
             .or_else(|e| backrub_error("Could not write to output file", Some(e.into())))?;
     }
+    set_meta_data(&restore_path, &entry.meta)?;
     Ok(())
 }

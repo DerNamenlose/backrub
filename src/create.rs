@@ -12,6 +12,7 @@ use crate::crypto::encode_keyed_block;
 use crate::crypto::DataEncryptionKey;
 use crate::errors::Error;
 use crate::fssource::FsBlockSource;
+use crate::os::unix::get_meta_data;
 use crate::repository::BackupBlockId;
 use rmp_serde::Serializer;
 use serde::Serialize;
@@ -80,6 +81,7 @@ fn backup_object(
     Ok(BackupEntry {
         name: String::from(source_name_relative),
         block_list_id: id,
+        meta: get_meta_data(&file.path())?,
     })
 }
 
@@ -113,3 +115,5 @@ fn finish_object(
     let id = repo.add_block(&storage_buf)?;
     Ok(id)
 }
+
+// fn get_file_meta(entry: walkdir::DirEntry) -> Result<Meta> {}

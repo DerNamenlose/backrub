@@ -1,3 +1,4 @@
+use crate::os::unix::UnixFsMetaData;
 use crate::repository::BackupBlockId;
 use serde::{Deserialize, Serialize};
 
@@ -24,10 +25,28 @@ impl From<Vec<BackupEntry>> for EntryList {
 }
 
 /**
+ * The possible meta data types attached to a backup object
+ */
+#[derive(Serialize, Deserialize)]
+pub enum Meta {
+    UnixFsMeta(UnixFsMetaData),
+}
+
+/**
  * entry representing a single backup object
  */
 #[derive(Serialize, Deserialize)]
 pub struct BackupEntry {
+    /**
+     * The name of the backup object
+     */
     pub name: String,
+    /**
+     * The id of the block in the repository containing the block list for this entry
+     */
     pub block_list_id: BackupBlockId,
+    /**
+     * The meta data attached to the object
+     */
+    pub meta: Meta,
 }
