@@ -1,24 +1,5 @@
-use super::errors::Result;
 use crate::repository::BackupBlockId;
 use serde::{Deserialize, Serialize};
-
-/**
- * A writer for writing backup objects to a repository.
- * This trait is implemented by different repository types to
- * implement their version of the writer
- */
-pub trait BackupObjectWriter {
-    /**
-     * Add a new block to the backup object. This will return the
-     * block's ID, if successful or an error description, if not
-     */
-    fn add_block(&mut self, data: &[u8]) -> Result<String>;
-
-    /**
-     * Finish this object by writing
-     */
-    fn finish(&self) -> Result<String>;
-}
 
 /**
  * interface for getting access to the blocks stored in a backed-up
