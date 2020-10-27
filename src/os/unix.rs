@@ -40,7 +40,13 @@ pub fn set_meta_data(path: &Path, meta: &Meta) -> Result<()> {
     match meta {
         UnixFsMeta(metadata) => {
             std::fs::set_permissions(path, Permissions::from_mode(metadata.mode))
-                .or_else(|e| backrub_error("Could not set permissions", Some(e.into())))
+                .or_else(|e| backrub_error("Could not set permissions", Some(e.into())))?;
+            nix::unistd::chown(
+                path,
+                Some(nix::unistd::Uid::from_raw(metadata.uid)),
+                Some(nix::unistd::Gid::from_raw(metadata.gid)),
+            )
+            .or_else(|e| backrub_error("Could not set file ownership", Some(e.into())))
         }
         _ => backrub_error("Only UNIX meta data supported by this OS adapter", None),
     }
