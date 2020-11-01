@@ -1,5 +1,6 @@
 pub mod backup;
 pub mod backupobject;
+pub mod blockcache;
 pub mod common;
 pub mod create;
 pub mod crypto;
