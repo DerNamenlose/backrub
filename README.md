@@ -28,8 +28,8 @@ overhead for the meta data being stored twice).
 This way each backup instance is, in a sense, a full snapshot, without the added
 storage overhead.
 
-Other programs employing similar techniques are (Git)[https://git-scm.com/] 
-itself, or (similar to backrub) (borg)[https://borgbackup.readthedocs.io/en/stable/].
+Other programs employing similar techniques are [Git](https://git-scm.com/) 
+itself, or (similar to backrub) [borg](https://borgbackup.readthedocs.io/en/stable/).
 
 ### What's with the name?
 
