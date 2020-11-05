@@ -7,15 +7,20 @@ use super::fssource::FsSource;
 use super::repository::Repository;
 use crate::backup::BackupEntry;
 use crate::backup::EntryList;
+use crate::backup::Meta;
 use crate::backupobject::BackupObject;
+use crate::blockcache;
+use crate::blockcache::BlockCache;
 use crate::crypto::encode_keyed_block;
 use crate::crypto::DataEncryptionKey;
 use crate::errors::Error;
 use crate::fssource::FsBlockSource;
 use crate::os::unix::get_meta_data;
 use crate::repository::BackupBlockId;
+use directories::ProjectDirs;
 use rmp_serde::Serializer;
 use serde::Serialize;
+use sha3::{Digest, Sha3_256};
 use std::time::SystemTime;
 
 /**
@@ -23,7 +28,15 @@ use std::time::SystemTime;
  */
 
 pub fn make_backup(repository: &str, path: &str, name: &str) -> Result<()> {
+    let cache_dir = ProjectDirs::from("de", "geekbetrieb", "backrub")
+        .map(|p| p.cache_dir().join("block_cache"))
+        .ok_or(Error {
+            message: "Could not calculate block cache directory",
+            cause: None,
+        })?;
     let mut repo: FsRepository = Repository::new(&repository);
+    let cache = blockcache::open(&cache_dir)?;
+    cache.ensure()?;
     let key = read_key()?;
     repo.open(key)?;
     let current_key = repo.current_key()?;
@@ -34,7 +47,7 @@ pub fn make_backup(repository: &str, path: &str, name: &str) -> Result<()> {
         .expect("Could not get current time");
     let mut backup_entries = EntryList::from(vec![]);
     for file in source.objects() {
-        let entry = backup_object(&path, &source, &repo, &current_key, file)?;
+        let entry = backup_object(&path, &source, &repo, &cache, &current_key, file)?;
         backup_entries.0.push(entry);
     }
     log::info!("Finishing backup");
@@ -53,6 +66,7 @@ fn backup_object(
     path: &str,
     source: &FsSource,
     repo: &FsRepository,
+    cache: &impl BlockCache,
     current_key: &(u64, DataEncryptionKey),
     file: walkdir::DirEntry,
 ) -> Result<BackupEntry> {
@@ -70,19 +84,30 @@ fn backup_object(
                 cause: None,
             })
         })?;
-    let blocks = source.open_entry(&source_name)?;
-    // let mut object = repo.start_object(&source_name_relative)?;
-    let mut object = BackupObject { blocks: vec![] };
-    backup_blocks(blocks, &mut object, &repo, &current_key)?;
-    log::debug!("Adding object descriptor to repository");
-    let id = finish_object(&object, &repo, &current_key)?;
-
-    log::debug!("New object: {}", id);
-    Ok(BackupEntry {
-        name: String::from(source_name_relative),
-        block_list_id: id,
-        meta: get_meta_data(&file.path())?,
-    })
+    let source_meta_data = get_meta_data(&file.path())?;
+    let meta_block = get_meta_block(&source_name, &source_meta_data)?;
+    if let Ok(Some(backup_id)) = cache.get_backup_block_id(&meta_block) {
+        log::trace!("Block cache hit for \"{}\"", source_name);
+        Ok(BackupEntry {
+            name: String::from(source_name_relative),
+            block_list_id: backup_id,
+            meta: source_meta_data,
+        })
+    } else {
+        log::trace!("Block cache miss for \"{}\"", source_name);
+        let blocks = source.open_entry(&source_name)?;
+        let mut object = BackupObject { blocks: vec![] };
+        backup_blocks(blocks, &mut object, &repo, &current_key)?;
+        log::debug!("Adding object descriptor to repository");
+        let id = finish_object(&object, &repo, &current_key)?;
+        log::debug!("New object: {}", id);
+        cache.add_block(&meta_block, &id)?;
+        Ok(BackupEntry {
+            name: String::from(source_name_relative),
+            block_list_id: id,
+            meta: source_meta_data,
+        })
+    }
 }
 
 fn backup_blocks(
@@ -114,6 +139,20 @@ fn finish_object(
     encode_keyed_block(&mut storage_buf, &object_buffer, current_key)?;
     let id = repo.add_block(&storage_buf)?;
     Ok(id)
+}
+
+fn get_meta_block(path: &str, meta: &Meta) -> Result<Vec<u8>> {
+    let mut buf = vec![];
+    let mut serializer = Serializer::new(&mut buf);
+    (*path)
+        .serialize(&mut serializer)
+        .or_else(|e| backrub_error("Could not serialize path", Some(e.into())))?;
+    (*meta)
+        .serialize(&mut serializer)
+        .or_else(|e| backrub_error("Could not serialize meta", Some(e.into())))?;
+    let mut hasher = Sha3_256::new();
+    hasher.update(&buf);
+    Ok(hasher.finalize().to_vec())
 }
 
 // fn get_file_meta(entry: walkdir::DirEntry) -> Result<Meta> {}

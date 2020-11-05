@@ -24,6 +24,11 @@ pub struct UnixFsMetaData {
      * The POSIX mode bits (with possibly some extensions)
      */
     pub mode: u32,
+
+    /**
+     * the size as present in the backup
+     */
+    pub size: i64,
 }
 
 pub fn get_meta_data(path: &Path) -> Result<Meta> {
@@ -33,6 +38,7 @@ pub fn get_meta_data(path: &Path) -> Result<Meta> {
         uid: stat.st_uid,
         gid: stat.st_gid,
         mode: stat.st_mode,
+        size: stat.st_size,
     }))
 }
 

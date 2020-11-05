@@ -6,7 +6,7 @@ mod fsrepotest {
     #[test]
     fn blocks_are_recognized_in_the_cache() {
         let temp = assert_fs::TempDir::new().unwrap();
-        let test_path = temp.path().to_str().unwrap();
+        let test_path = temp.path();
         let cache = backrub::blockcache::open(test_path).unwrap();
         let bid = BackupBlockId::from_bytes(b"01234567012345670123456701234567").unwrap();
         cache.add_block(&b"abcdefg".to_vec(), &bid).unwrap();
