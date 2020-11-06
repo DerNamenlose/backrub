@@ -138,6 +138,7 @@ mod fsrepotest {
     fn instance_roundtrip_is_successful() -> Result<()> {
         let source_dir = assert_fs::TempDir::new().unwrap();
         let test_path = source_dir.path().to_str().unwrap();
+        let temp_cache = assert_fs::TempDir::new().unwrap();
         print!("Initializing source directory... ");
         setup_source_dir(test_path);
         println!("Done.");
@@ -149,7 +150,7 @@ mod fsrepotest {
         let repo: FsRepository = Repository::new(repo_path);
         repo.initialize(InputKey::from(b"MyTestKey" as &[u8]))?;
         std::env::set_var("BACKRUB_KEY", "MyTestKey");
-        make_backup(repo_path, test_path, "ThisRandomBackup")?;
+        make_backup(repo_path, test_path, temp_cache.path(), "ThisRandomBackup")?;
 
         let restore_dir = assert_fs::TempDir::new().unwrap();
         let restore_path = restore_dir.path().to_str().unwrap();

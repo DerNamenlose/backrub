@@ -1,6 +1,8 @@
 use backrub::create;
+use backrub::errors::Error;
 use backrub::program;
 use backrub::restore;
+use directories::ProjectDirs;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -55,9 +57,17 @@ fn main() -> backrub::errors::Result<()> {
         .filter_level(log::LevelFilter::Info)
         .init();
     let options = Opts::from_args();
+    let cache_dir = ProjectDirs::from("de", "geekbetrieb", "backrub")
+        .map(|p| p.cache_dir().join("block_cache"))
+        .ok_or(Error {
+            message: "Could not calculate block cache directory",
+            cause: None,
+        })?;
     let program_result = match options {
         Opts::Init(opts) => program::initialize_repository(&opts.repository),
-        Opts::Create(opts) => create::make_backup(&opts.repository, &opts.path, &opts.name),
+        Opts::Create(opts) => {
+            create::make_backup(&opts.repository, &opts.path, &cache_dir, &opts.name)
+        }
         Opts::Restore(opts) => restore::restore_backup(&opts.repository, &opts.path, &opts.name),
     };
     program_result

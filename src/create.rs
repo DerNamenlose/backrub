@@ -17,23 +17,17 @@ use crate::errors::Error;
 use crate::fssource::FsBlockSource;
 use crate::os::unix::get_meta_data;
 use crate::repository::BackupBlockId;
-use directories::ProjectDirs;
 use rmp_serde::Serializer;
 use serde::Serialize;
 use sha3::{Digest, Sha3_256};
+use std::path::Path;
 use std::time::SystemTime;
 
 /**
  * entry point for the create sub-command
  */
 
-pub fn make_backup(repository: &str, path: &str, name: &str) -> Result<()> {
-    let cache_dir = ProjectDirs::from("de", "geekbetrieb", "backrub")
-        .map(|p| p.cache_dir().join("block_cache"))
-        .ok_or(Error {
-            message: "Could not calculate block cache directory",
-            cause: None,
-        })?;
+pub fn make_backup(repository: &str, path: &str, cache_dir: &Path, name: &str) -> Result<()> {
     let mut repo: FsRepository = Repository::new(&repository);
     let cache = blockcache::open(&cache_dir)?;
     cache.ensure()?;
@@ -97,7 +91,7 @@ fn backup_object(
         log::trace!("Block cache miss for \"{}\"", source_name);
         let blocks = source.open_entry(&source_name)?;
         let mut object = BackupObject { blocks: vec![] };
-        backup_blocks(blocks, &mut object, &repo, &current_key)?;
+        backup_blocks(blocks, &mut object, &repo, cache, &current_key)?;
         log::debug!("Adding object descriptor to repository");
         let id = finish_object(&object, &repo, &current_key)?;
         log::debug!("New object: {}", id);
@@ -114,13 +108,21 @@ fn backup_blocks(
     blocks: FsBlockSource,
     object: &mut BackupObject,
     repo: &FsRepository,
+    cache: &impl BlockCache,
     key: &(u64, DataEncryptionKey),
 ) -> Result<()> {
     for block in blocks {
-        let mut output_block = vec![];
-        encode_keyed_block(&mut output_block, &block, &key)?;
-        let id = repo.add_block(&output_block)?;
-        object.blocks.push(id);
+        let backup_id = if let Ok(Some(backup_block_id)) = cache.get_backup_block_id(&block) {
+            log::trace!("Block cache hit for {}", backup_block_id);
+            backup_block_id
+        } else {
+            let mut output_block = vec![];
+            encode_keyed_block(&mut output_block, &block, &key)?;
+            let id = repo.add_block(&output_block)?;
+            log::trace!("Block cache miss for {}", id);
+            id
+        };
+        object.blocks.push(backup_id);
     }
     log::debug!("Finished copying blocks");
     Ok(())
