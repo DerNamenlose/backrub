@@ -22,6 +22,7 @@ env_logger = "0.7.1"
 rpassword = "5.0.0"
 nix = "0.19.0"
 directories = "3.0"
+chrono = "0.4"
 
 [dev-dependencies]
 assert_fs = "1.0.0"
