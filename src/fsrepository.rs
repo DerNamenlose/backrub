@@ -56,6 +56,14 @@ impl FsRepository<'_> {
             current_key: None,
         };
     }
+    fn open_instance_file(path: &Path) -> Result<BackupInstance> {
+        let file = fs::File::open(path)
+            .or_else(|e| backrub_error("Could not open instance", Some(e.into())))?;
+        let mut deserializer = Deserializer::new(file);
+        let instance = Deserialize::deserialize(&mut deserializer)
+            .or_else(|e| backrub_error("Could not deserialize instance", Some(e.into())))?;
+        Ok(instance)
+    }
 }
 
 impl Repository for FsRepository<'_> {
@@ -176,21 +184,15 @@ impl Repository for FsRepository<'_> {
             meta: meta,
         }))
     }
-    fn list_instances(&self) -> Result<Vec<String>> {
+    fn list_instances(&self) -> Result<Vec<BackupInstance>> {
         let entries = fs::read_dir(self.path.join("instances"))
             .or_else(|e| backrub_error("Could not open backup instances", Some(e.into())))?;
-        // Ok(Vec::from(
-        //     entries.filter_map(|entry| entry.ok()?.path().to_str()),
-        // ))
-        Ok(vec![])
+        let result = entries.filter_map(|entry| entry.ok().map(|e| e.path()));
+        let instances = result.filter_map(|p| FsRepository::open_instance_file(&p).ok());
+        Ok(instances.collect())
     }
     fn open_instance(&self, name: &str) -> Result<BackupInstance> {
-        let file = fs::File::open(self.path.join("instances").join(name))
-            .or_else(|e| backrub_error("Could not open instance", Some(e.into())))?;
-        let mut deserializer = Deserializer::new(file);
-        let instance = Deserialize::deserialize(&mut deserializer)
-            .or_else(|e| backrub_error("Could not deserialize instance", Some(e.into())))?;
-        Ok(instance)
+        FsRepository::open_instance_file(&self.path.join("instances").join(name))
     }
     fn keys(&self) -> Result<&HashMap<u64, DataEncryptionKey>> {
         Ok(&self.keys)

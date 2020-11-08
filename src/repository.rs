@@ -9,7 +9,6 @@ use crate::crypto::KeySet;
 use crate::errors::backrub_error;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use std::path::Path;
 /**
  * Meta information of a repository
  */
@@ -110,7 +109,7 @@ pub trait Repository {
     /**
      * List the currently stored backup instances
      */
-    fn list_instances(&self) -> Result<Vec<String>>;
+    fn list_instances(&self) -> Result<Vec<BackupInstance>>;
 
     /**
      * Load a instance with the given name

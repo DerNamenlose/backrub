@@ -1,6 +1,10 @@
 use crate::os::unix::UnixFsMetaData;
 use crate::repository::BackupBlockId;
+use chrono::DateTime;
+use chrono::Local;
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
+use std::ops::Add;
 
 /**
  * Object representing a single backup instance
@@ -10,6 +14,15 @@ pub struct BackupInstance {
     pub name: String,
     pub time: u64,
     pub entry_list_id: BackupBlockId,
+}
+
+impl Display for BackupInstance {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        let date: DateTime<Local> = std::time::SystemTime::UNIX_EPOCH
+            .add(std::time::Duration::from_secs(self.time))
+            .into();
+        write!(fmt, "Name: {}\ncreated at: {}", &self.name, date)
+    }
 }
 
 /**
