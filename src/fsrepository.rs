@@ -27,17 +27,19 @@ use std::fs;
 use std::fs::File;
 use std::io::Cursor;
 use std::path;
+use std::path::Path;
+use std::path::PathBuf;
 
 use rmp_serde::Serializer;
 
-pub struct FsRepository {
-    path: String,
+pub struct FsRepository<'a> {
+    path: &'a Path,
     repo_info: Option<BackrubRepositoryMeta>,
     keys: HashMap<u64, DataEncryptionKey>,
     current_key: Option<(u64, DataEncryptionKey)>,
 }
 
-fn path_for(base: &str, segments: &[&str]) -> path::PathBuf {
+fn path_for(base: &Path, segments: &[&str]) -> path::PathBuf {
     let mut p = path::PathBuf::from(&base);
     for seg in segments {
         p.push(seg);
@@ -45,15 +47,18 @@ fn path_for(base: &str, segments: &[&str]) -> path::PathBuf {
     p
 }
 
-impl Repository for FsRepository {
-    fn new(path: &str) -> Self {
+impl FsRepository<'_> {
+    pub fn new<'a>(path: &'a Path) -> FsRepository<'a> {
         return FsRepository {
-            path: String::from(path),
+            path: path,
             repo_info: None,
             keys: HashMap::new(),
             current_key: None,
         };
     }
+}
+
+impl Repository for FsRepository<'_> {
     fn meta(&self) -> Result<&BackrubRepositoryMeta> {
         match &self.repo_info {
             Some(info) => Ok(info),
@@ -153,28 +158,26 @@ impl Repository for FsRepository {
     }
     fn open_object(&self, id: &BackupBlockId) -> Result<BackupObject> {
         let id_str = id.to_str();
-        let object_path: path::PathBuf = [&self.path, "blocks", &id_str[..2], &id_str[2..]]
-            .iter()
-            .collect();
-        let file = fs::File::open(object_path)
-            .or_else(|e| backrub_error("Could not open object", Some(e.into())))?;
+        let file = fs::File::open(
+            self.path
+                .join("blocks")
+                .join(&id_str[..2])
+                .join(&id_str[2..]),
+        )
+        .or_else(|e| backrub_error("Could not open object", Some(e.into())))?;
         let keys = self.keys()?;
         let decoded_block = decode_keyed_block(file, &keys)?;
         Deserialize::deserialize(&mut Deserializer::new(&mut Cursor::new(&decoded_block)))
             .or_else(|e| backrub_error("Could not deserialize object", Some(e.into())))
     }
-    fn open_object_reader(
-        &self,
-        meta: BackupObject,
-    ) -> Result<std::boxed::Box<dyn BackupObjectReader>> {
+    fn open_object_reader(&self, meta: BackupObject) -> Result<Box<dyn BackupObjectReader>> {
         Ok(Box::new(FsBackupObjectReader {
-            repo_path: self.path.clone(),
+            repo_path: self.path.to_owned(),
             meta: meta,
         }))
     }
     fn list_instances(&self) -> Result<Vec<String>> {
-        let instance_path: path::PathBuf = [&self.path, "instances"].iter().collect();
-        let entries = fs::read_dir(instance_path)
+        let entries = fs::read_dir(self.path.join("instances"))
             .or_else(|e| backrub_error("Could not open backup instances", Some(e.into())))?;
         // Ok(Vec::from(
         //     entries.filter_map(|entry| entry.ok()?.path().to_str()),
@@ -182,19 +185,12 @@ impl Repository for FsRepository {
         Ok(vec![])
     }
     fn open_instance(&self, name: &str) -> Result<BackupInstance> {
-        let instance_path: path::PathBuf = [&self.path, "instances", name].iter().collect();
-        let p = instance_path.to_str();
-        match p {
-            Some(ip) => {
-                let file = fs::File::open(ip)
-                    .or_else(|e| backrub_error("Could not open instance", Some(e.into())))?;
-                let mut deserializer = Deserializer::new(file);
-                let instance = Deserialize::deserialize(&mut deserializer)
-                    .or_else(|e| backrub_error("Could not deserialize object", Some(e.into())))?;
-                Ok(instance)
-            }
-            None => backrub_error("Could not serialize instance path", None),
-        }
+        let file = fs::File::open(self.path.join("instances").join(name))
+            .or_else(|e| backrub_error("Could not open instance", Some(e.into())))?;
+        let mut deserializer = Deserializer::new(file);
+        let instance = Deserialize::deserialize(&mut deserializer)
+            .or_else(|e| backrub_error("Could not deserialize instance", Some(e.into())))?;
+        Ok(instance)
     }
     fn keys(&self) -> Result<&HashMap<u64, DataEncryptionKey>> {
         Ok(&self.keys)
@@ -208,9 +204,8 @@ impl Repository for FsRepository {
     }
 }
 
-fn load_meta_data(base_path: &str) -> Result<BackrubRepositoryMeta> {
-    let meta_path: path::PathBuf = [base_path, "backrub"].iter().collect();
-    let f = fs::File::open(meta_path).or_else(|e| {
+fn load_meta_data(base_path: &Path) -> Result<BackrubRepositoryMeta> {
+    let f = fs::File::open(base_path.join("backrub")).or_else(|e| {
         backrub_error(
             "Could not open meta file. Is this a backrub repository?",
             Some(e.into()),
@@ -222,9 +217,8 @@ fn load_meta_data(base_path: &str) -> Result<BackrubRepositoryMeta> {
     Ok(meta)
 }
 
-fn load_keys(base_path: &str, master_key: &MasterKey) -> Result<Vec<(u64, DataEncryptionKey)>> {
-    let key_path: path::PathBuf = [&base_path, "keys"].iter().collect();
-    let key_entries = fs::read_dir(key_path)
+fn load_keys(base_path: &Path, master_key: &MasterKey) -> Result<Vec<(u64, DataEncryptionKey)>> {
+    let key_entries = fs::read_dir(base_path.join("keys"))
         .or_else(|err| backrub_error("Could not read key storage", Some(err.into())))?
         .filter_map(|e| e.ok())
         .filter(|e| {
@@ -240,7 +234,7 @@ fn load_keys(base_path: &str, master_key: &MasterKey) -> Result<Vec<(u64, DataEn
         .collect::<Result<Vec<(u64, DataEncryptionKey)>>>()
 }
 
-fn write_block(repo_path: &str, data: &[u8]) -> Result<BackupBlockId> {
+fn write_block(repo_path: &Path, data: &[u8]) -> Result<BackupBlockId> {
     let mut hasher = Sha3_256::new();
     hasher.update(&data);
     let id_bytes = hasher.finalize();
@@ -256,12 +250,12 @@ fn write_block(repo_path: &str, data: &[u8]) -> Result<BackupBlockId> {
 }
 
 struct FsBackupObjectBlockSource<'a> {
-    path: String,
+    path: &'a Path,
     block_iter: std::slice::Iter<'a, BackupBlockId>,
 }
 
 impl<'a> FsBackupObjectBlockSource<'a> {
-    pub fn new(path: String, iter: std::slice::Iter<'a, BackupBlockId>) -> Self {
+    pub fn new(path: &'a Path, iter: std::slice::Iter<'a, BackupBlockId>) -> Self {
         FsBackupObjectBlockSource {
             path: path,
             block_iter: iter,
@@ -275,33 +269,35 @@ impl<'a> Iterator for FsBackupObjectBlockSource<'a> {
     fn next(&mut self) -> std::option::Option<<Self as std::iter::Iterator>::Item> {
         let block_id = self.block_iter.next()?;
         let id_str = block_id.to_str();
-        let block_path: path::PathBuf = [&self.path, "blocks", &id_str[..2], &id_str[2..]]
-            .iter()
-            .collect();
-        fs::read(block_path).ok()
+        fs::read(
+            self.path
+                .join("blocks")
+                .join(&id_str[..2])
+                .join(&id_str[2..]),
+        )
+        .ok()
     }
 }
 
 pub struct FsBackupObjectReader {
     meta: BackupObject,
-    repo_path: String,
+    repo_path: PathBuf,
 }
 
 impl BackupObjectReader for FsBackupObjectReader {
     fn blocks<'a>(&'a self) -> Box<dyn Iterator<Item = Vec<u8>> + 'a> {
         Box::new(FsBackupObjectBlockSource::new(
-            String::from(&self.repo_path),
+            &self.repo_path,
             self.meta.blocks.iter(),
         ))
     }
 }
 
-fn is_initialized(path: &str) -> bool {
-    let meta_path: path::PathBuf = [&path, "backrub"].iter().collect();
-    meta_path.exists()
+fn is_initialized(path: &Path) -> bool {
+    path.join("backrub").exists()
 }
 
-fn create_backrub_infrastructure(path: &str, master_password: &InputKey) -> Result<()> {
+fn create_backrub_infrastructure(path: &Path, master_password: &InputKey) -> Result<()> {
     log::debug!("Initialize key derivation");
     let (iterations, salt) = initialize_key_derivation();
     let meta = BackrubRepositoryMeta {
@@ -311,22 +307,18 @@ fn create_backrub_infrastructure(path: &str, master_password: &InputKey) -> Resu
         iterations: iterations,
     };
     log::debug!("Creating main meta file");
-    let meta_path: path::PathBuf = [&path, "backrub"].iter().collect();
-    let file = &mut File::create(meta_path)
+    let file = &mut File::create(path.join("backrub"))
         .or_else(|e| backrub_error("Could not create repository marker file", Some(e.into())))?;
     meta.serialize(&mut Serializer::new(file))
         .or_else(|e| backrub_error("Could not serialize repository marker", Some(e.into())))?;
     log::debug!("Creating block storage");
-    let block_path: path::PathBuf = [&path, "blocks"].iter().collect();
-    fs::create_dir_all(block_path)
+    fs::create_dir_all(path.join("blocks"))
         .or_else(|e| backrub_error("Could not create block storage", Some(e.into())))?;
     log::debug!("Creating instance storage");
-    let instance_path: path::PathBuf = [&path, "instances"].iter().collect();
-    fs::create_dir_all(instance_path)
+    fs::create_dir_all(path.join("instances"))
         .or_else(|e| backrub_error("Could not create instance storage", Some(e.into())))?;
     log::debug!("Creating key storage");
-    let key_path: path::PathBuf = [&path, "keys"].iter().collect();
-    fs::create_dir_all(key_path)
+    fs::create_dir_all(path.join("keys"))
         .or_else(|e| backrub_error("Could not create key storage", Some(e.into())))?;
     log::debug!("Creating initial data encryption key");
     let master_key = derive_key(&master_password, &meta.salt, iterations as u32)?;
@@ -340,11 +332,11 @@ struct EncryptedDataEncryptionKey {
     pub key_block: CryptoBlock, // The encrypted data encryption key
 }
 
-fn create_data_encryption_key(path: &str, master_key: MasterKey) -> Result<()> {
+fn create_data_encryption_key(path: &Path, master_key: MasterKey) -> Result<()> {
     let mut key_bytes = [0; 32];
     rngs::OsRng.fill_bytes(&mut key_bytes);
     let key_file_name = format!("{:016x}.key", rand::thread_rng().next_u64());
-    let key_file_path: path::PathBuf = [&path, "keys", &key_file_name].iter().collect();
+    let key_file_path = path.join("keys").join(&key_file_name);
     let cipher = Cipher::new(&DataEncryptionKey::from(&master_key));
     let encrypted_key_block = cipher.encrypt_block(&Vec::from(key_bytes))?;
     let key_file = fs::File::create(key_file_path)

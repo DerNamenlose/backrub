@@ -8,6 +8,7 @@ use crate::crypto::decode_keyed_block;
 use crate::os::unix::set_meta_data;
 use std::io::Cursor;
 use std::io::Write;
+use std::path::Path;
 
 pub fn restore_backup(repository: &str, path: &str, name: &str) -> Result<()> {
     log::info!(
@@ -16,7 +17,7 @@ pub fn restore_backup(repository: &str, path: &str, name: &str) -> Result<()> {
         repository,
         path
     );
-    let mut repository: FsRepository = Repository::new(repository);
+    let mut repository = FsRepository::new(&Path::new(repository));
     let key = read_key()?;
     repository.open(key)?;
     let instance = repository.open_instance(name)?;

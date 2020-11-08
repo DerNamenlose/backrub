@@ -16,8 +16,7 @@ mod fsrepotest {
     #[test]
     fn initialize_creates_repo_structure() -> Result<()> {
         let temp = assert_fs::TempDir::new().unwrap();
-        let test_path = temp.path().to_str().unwrap();
-        let repo: FsRepository = Repository::new(test_path);
+        let repo = FsRepository::new(temp.path());
         repo.initialize(InputKey::from(b"MyTestKey" as &[u8]))?;
 
         assert2::assert!(Path::is_file(temp.child("backrub").path()));
@@ -38,8 +37,7 @@ mod fsrepotest {
     #[test]
     fn block_is_stored_in_repository() -> Result<()> {
         let temp = assert_fs::TempDir::new().unwrap();
-        let test_path = temp.path().to_str().unwrap();
-        let repo: FsRepository = Repository::new(test_path);
+        let repo = FsRepository::new(temp.path());
         repo.initialize(InputKey::from(b"MyTestKey" as &[u8]))?;
         let string = "This is a test";
         repo.add_block(string.as_bytes()).unwrap();
@@ -137,32 +135,46 @@ mod fsrepotest {
     #[test]
     fn instance_roundtrip_is_successful() -> Result<()> {
         let source_dir = assert_fs::TempDir::new().unwrap();
-        let test_path = source_dir.path().to_str().unwrap();
         let temp_cache = assert_fs::TempDir::new().unwrap();
         print!("Initializing source directory... ");
-        setup_source_dir(test_path);
+        setup_source_dir(source_dir.path());
         println!("Done.");
         println!("Starting backup process...");
-        let repo_t = assert_fs::TempDir::new().unwrap();
-        let r = repo_t.into_persistent();
-        let repo_path = r.path().to_str().unwrap();
+        let repo_temp = assert_fs::TempDir::new().unwrap();
 
-        let repo: FsRepository = Repository::new(repo_path);
+        let repo = FsRepository::new(repo_temp.path());
         repo.initialize(InputKey::from(b"MyTestKey" as &[u8]))?;
         std::env::set_var("BACKRUB_KEY", "MyTestKey");
-        make_backup(repo_path, test_path, temp_cache.path(), "ThisRandomBackup")?;
+        make_backup(
+            repo_temp.path().to_str().unwrap(),
+            source_dir.path().to_str().unwrap(),
+            temp_cache.path(),
+            "ThisRandomBackup",
+        )?;
 
         let restore_dir = assert_fs::TempDir::new().unwrap();
         let restore_path = restore_dir.path().to_str().unwrap();
         println!("Restoring backup...");
-        restore_backup(repo_path, restore_path, "ThisRandomBackup")?;
+        restore_backup(
+            repo_temp.path().to_str().unwrap(),
+            restore_path,
+            "ThisRandomBackup",
+        )?;
 
         println!("Comparing source and restored path...");
-        let mut all_source_files: Vec<String> = walkdir::WalkDir::new(&test_path)
+        let mut all_source_files: Vec<String> = walkdir::WalkDir::new(&source_dir.path())
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|p| p.path().is_file())
-            .map(|e| String::from(e.path().strip_prefix(&test_path).unwrap().to_str().unwrap()))
+            .map(|e| {
+                String::from(
+                    e.path()
+                        .strip_prefix(&source_dir.path())
+                        .unwrap()
+                        .to_str()
+                        .unwrap(),
+                )
+            })
             .collect();
         let mut all_restored_files: Vec<String> = walkdir::WalkDir::new(&restore_path)
             .into_iter()
@@ -214,13 +226,12 @@ mod fsrepotest {
     #[test]
     fn stored_keys_are_loaded_by_the_repo() -> Result<()> {
         let repo_dir = assert_fs::TempDir::new().unwrap();
-        let repo_path = repo_dir.path().to_str().unwrap();
         {
-            let repo: FsRepository = Repository::new(repo_path);
+            let repo = FsRepository::new(repo_dir.path());
             repo.initialize(InputKey::from(b"ThisIsATest" as &[u8]))?;
         }
 
-        let mut repo: FsRepository = Repository::new(repo_path);
+        let mut repo = FsRepository::new(repo_dir.path());
         repo.open(InputKey::from(b"ThisIsATest" as &[u8]))?;
 
         assert2::assert!(repo.keys()?.len() == 1);
@@ -228,15 +239,14 @@ mod fsrepotest {
         Ok(())
     }
 
-    fn setup_source_dir(path: &str) {
+    fn setup_source_dir(path: &Path) {
         let mut rnd = rand::thread_rng();
         let filenames: Vec<String> = (0..100)
             .map(|_| format!("file-{}", rnd.next_u32()))
             .collect();
         let pathnames: Vec<String> = (0..20).map(|_| format!("dir-{}", rnd.next_u32())).collect();
         for dir in &pathnames {
-            let p: std::path::PathBuf = [path, &dir].iter().collect();
-            fs::create_dir_all(p).unwrap();
+            fs::create_dir_all(path.join(&dir)).unwrap();
         }
         let exp = Exp::new(3.0).unwrap();
         for file in filenames {
@@ -244,10 +254,10 @@ mod fsrepotest {
             let data_size = (rnd.sample(exp) * 1024.0 * 1024.0) as usize; // generate an exponentially distributed filesize
             let mut data = vec![0; data_size];
             rnd.fill_bytes(&mut data);
-            let p: std::path::PathBuf = [path, &parent_dir, &file].iter().collect();
+            let p: std::path::PathBuf = path.join(&parent_dir).join(&file);
             fs::write(p, data).unwrap();
         }
-        let zero_size_file: std::path::PathBuf = [path, "zero-file"].iter().collect();
+        let zero_size_file: std::path::PathBuf = path.join("zero-file");
         fs::File::create(zero_size_file).unwrap();
     }
 }

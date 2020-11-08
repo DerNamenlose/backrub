@@ -9,6 +9,7 @@ use crate::crypto::KeySet;
 use crate::errors::backrub_error;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use std::path::Path;
 /**
  * Meta information of a repository
  */
@@ -53,10 +54,6 @@ impl PartialEq for BackupBlockId {
 }
 
 pub trait Repository {
-    /**
-     * reate a new repository instance pointing to the given path
-     */
-    fn new(path: &str) -> Self;
     /**
      * Return the meta information of this repository
      */

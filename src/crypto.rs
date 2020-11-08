@@ -116,7 +116,7 @@ where
 {
     let mut deserializer = Deserializer::new(block);
     let crypto_block: CryptoBlock = Deserialize::deserialize(&mut deserializer)
-        .or_else(|e| backrub_error("Could not deserialize object", Some(e.into())))?;
+        .or_else(|e| backrub_error("Could not deserialize crypto block", Some(e.into())))?;
     cipher.decrypt_block(&crypto_block)
 }
 

@@ -28,7 +28,7 @@ use std::time::SystemTime;
  */
 
 pub fn make_backup(repository: &str, path: &str, cache_dir: &Path, name: &str) -> Result<()> {
-    let mut repo: FsRepository = Repository::new(&repository);
+    let mut repo = FsRepository::new(&Path::new(&repository));
     let cache = blockcache::open(&cache_dir)?;
     cache.ensure()?;
     let key = read_key()?;
