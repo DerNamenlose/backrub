@@ -1,6 +1,6 @@
 use backrub::create;
 use backrub::errors::Error;
-use backrub::list;
+use backrub::instances;
 use backrub::program;
 use backrub::restore;
 use directories::ProjectDirs;
@@ -12,7 +12,7 @@ use structopt::StructOpt;
 enum Opts {
     Init(InitOps),
     Create(CreateOpts),
-    List(ListOpts),
+    Instances(InstancesOpts),
     Restore(RestoreOpts),
 }
 
@@ -41,8 +41,8 @@ struct CreateOpts {
 }
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "list", about = "List backed up instances in the repository")]
-struct ListOpts {
+#[structopt(name = "instances", about = "List backup instances in the repository")]
+struct InstancesOpts {
     #[structopt(short, long)]
     /// Activate debug mode
     debug: bool,
@@ -81,7 +81,7 @@ fn main() -> backrub::errors::Result<()> {
         Opts::Create(opts) => {
             create::make_backup(&opts.repository, &opts.path, &cache_dir, &opts.name)
         }
-        Opts::List(opts) => list::list(&Path::new(&opts.repository)),
+        Opts::Instances(opts) => instances::instances(&Path::new(&opts.repository)),
         Opts::Restore(opts) => restore::restore_backup(&opts.repository, &opts.path, &opts.name),
     };
     program_result

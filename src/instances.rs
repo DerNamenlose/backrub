@@ -4,7 +4,7 @@ use crate::fsrepository::FsRepository;
 use crate::repository::Repository;
 use std::path::Path;
 
-pub fn list(repository: &Path) -> Result<()> {
+pub fn instances(repository: &Path) -> Result<()> {
     let mut repo = FsRepository::new(&repository);
     let master_key = read_key()?;
     repo.open(master_key)?;

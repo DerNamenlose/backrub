@@ -7,7 +7,7 @@ pub mod crypto;
 pub mod errors;
 pub mod fsrepository;
 pub mod fssource;
-pub mod list;
+pub mod instances;
 pub mod os;
 pub mod program;
 pub mod repository;
