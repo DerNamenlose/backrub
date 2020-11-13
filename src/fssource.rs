@@ -17,12 +17,7 @@ impl FsSource {
 
     pub fn objects(&self) -> FsObjectIterator {
         FsObjectIterator {
-            current: Box::new(
-                WalkDir::new(&self.path)
-                    .into_iter()
-                    .filter_map(|e| e.ok())
-                    .filter(|f| f.file_type().is_file()),
-            ),
+            current: Box::new(WalkDir::new(&self.path).into_iter().filter_map(|e| e.ok())),
         }
     }
 

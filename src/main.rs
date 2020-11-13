@@ -66,9 +66,8 @@ struct RestoreOpts {
 }
 
 fn main() -> backrub::errors::Result<()> {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
-        .init();
+    let env = env_logger::Env::new().filter_or("BACKRUB_LOG", "info");
+    env_logger::Builder::from_env(env).init();
     let options = Opts::from_args();
     let cache_dir = ProjectDirs::from("de", "geekbetrieb", "backrub")
         .map(|p| p.cache_dir().join("block_cache"))

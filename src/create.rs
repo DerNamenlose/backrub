@@ -7,6 +7,9 @@ use super::fssource::FsSource;
 use super::repository::Repository;
 use crate::backup::BackupEntry;
 use crate::backup::EntryList;
+use crate::backup::EntryType;
+use crate::backup::FileEntryData;
+use crate::backup::LinkData;
 use crate::backup::Meta;
 use crate::backupobject::BackupObject;
 use crate::blockcache;
@@ -40,8 +43,8 @@ pub fn make_backup(repository: &str, path: &str, cache_dir: &Path, name: &str) -
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("Could not get current time");
     let mut backup_entries = EntryList::from(vec![]);
-    for file in source.objects() {
-        let entry = backup_object(&path, &source, &repo, &cache, &current_key, file)?;
+    for object in source.objects() {
+        let entry = backup_object(&path, &source, &repo, &cache, &current_key, object)?;
         backup_entries.0.push(entry);
     }
     log::info!("Finishing backup");
@@ -62,29 +65,59 @@ fn backup_object(
     repo: &FsRepository,
     cache: &impl BlockCache,
     current_key: &(u64, DataEncryptionKey),
-    file: walkdir::DirEntry,
+    object: walkdir::DirEntry,
 ) -> Result<BackupEntry> {
-    let source_name = file.path().to_str().ok_or(Error {
+    let file_type = object.file_type();
+    if file_type.is_file() {
+        backup_file(path, source, repo, cache, current_key, object)
+    } else if file_type.is_dir() {
+        backup_dir(path, object)
+    } else if file_type.is_symlink() {
+        backup_link(path, object)
+    } else {
+        backrub_error("Unsupported object type", None)
+    }
+}
+
+fn get_name(entry: &walkdir::DirEntry) -> Result<&str> {
+    entry.path().to_str().ok_or(Error {
         message: "Could not decode file path",
         cause: None,
-    })?;
-    let source_name_relative = file
+    })
+}
+
+fn get_relative_name<'a>(entry: &'a walkdir::DirEntry, base: &'a str) -> Result<&'a str> {
+    entry
         .path()
-        .strip_prefix(&path)
+        .strip_prefix(&base)
         .or_else(|e| backrub_error("Could not get relative source name", Some(e.into())))
         .and_then(|p| {
             p.to_str().ok_or(Error {
                 message: "Could not decode file path",
                 cause: None,
             })
-        })?;
+        })
+}
+
+fn backup_file(
+    path: &str,
+    source: &FsSource,
+    repo: &FsRepository,
+    cache: &impl BlockCache,
+    current_key: &(u64, DataEncryptionKey),
+    file: walkdir::DirEntry,
+) -> Result<BackupEntry> {
+    let source_name = get_name(&file)?;
+    let source_name_relative = get_relative_name(&file, &path)?;
     let source_meta_data = get_meta_data(&file.path())?;
     let meta_block = get_meta_block(&source_name, &source_meta_data)?;
     if let Ok(Some(backup_id)) = cache.get_backup_block_id(&meta_block) {
         log::trace!("Block cache hit for \"{}\"", source_name);
         Ok(BackupEntry {
             name: String::from(source_name_relative),
-            block_list_id: backup_id,
+            entry_type: EntryType::File(FileEntryData {
+                block_list_id: backup_id,
+            }),
             meta: source_meta_data,
         })
     } else {
@@ -98,10 +131,36 @@ fn backup_object(
         cache.add_block(&meta_block, &id)?;
         Ok(BackupEntry {
             name: String::from(source_name_relative),
-            block_list_id: id,
+            entry_type: EntryType::File(FileEntryData { block_list_id: id }),
             meta: source_meta_data,
         })
     }
+}
+
+fn backup_dir(path: &str, dir: walkdir::DirEntry) -> Result<BackupEntry> {
+    let source_name_relative = get_relative_name(&dir, &path)?;
+    Ok(BackupEntry {
+        name: String::from(source_name_relative),
+        entry_type: EntryType::Dir,
+        meta: get_meta_data(dir.path())?,
+    })
+}
+
+fn backup_link(path: &str, link: walkdir::DirEntry) -> Result<BackupEntry> {
+    let source_name_relative = get_relative_name(&link, &path)?;
+    let link_target = std::fs::read_link(link.path())
+        .or_else(|e| backrub_error("Could not read link target", Some(e.into())))?;
+    let link_target_string = link_target.to_str().ok_or(Error {
+        message: "Could not decode link target path",
+        cause: None,
+    })?;
+    Ok(BackupEntry {
+        name: String::from(source_name_relative),
+        entry_type: EntryType::Link(LinkData {
+            target: String::from(link_target_string),
+        }),
+        meta: get_meta_data(link.path())?,
+    })
 }
 
 fn backup_blocks(

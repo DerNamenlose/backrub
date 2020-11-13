@@ -1,4 +1,4 @@
-use crate::os::unix::UnixFsMetaData;
+use crate::os::unix::UnixFsMeta;
 use crate::repository::BackupBlockId;
 use chrono::DateTime;
 use chrono::Local;
@@ -42,7 +42,18 @@ impl From<Vec<BackupEntry>> for EntryList {
  */
 #[derive(Serialize, Deserialize)]
 pub enum Meta {
-    UnixFsMeta(UnixFsMetaData),
+    UnixMeta(UnixFsMeta),
+}
+
+impl Display for Meta {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::result::Result<(), std::fmt::Error> {
+        match &self {
+            Meta::UnixMeta(meta_data) => write!(formatter, "{}", meta_data),
+        }
+    }
 }
 
 /**
@@ -55,11 +66,52 @@ pub struct BackupEntry {
      */
     pub name: String,
     /**
-     * The id of the block in the repository containing the block list for this entry
+     * The type-specific information for this entry
      */
-    pub block_list_id: BackupBlockId,
+    pub entry_type: EntryType,
     /**
      * The meta data attached to the object
      */
     pub meta: Meta,
+}
+
+/**
+ * The entry type of the backup object
+ */
+#[derive(Serialize, Deserialize)]
+pub enum EntryType {
+    /**
+     * The entry is a file with the given data
+     */
+    File(FileEntryData),
+    /**
+     * The entry is a directory
+     */
+    Dir,
+    /**
+     * The file is a (sym)link with the gven link data
+     */
+    Link(LinkData),
+}
+
+/**
+ * entry representing a single file object
+ */
+#[derive(Serialize, Deserialize)]
+pub struct FileEntryData {
+    /**
+     * The id of the block in the repository containing the block list for this entry
+     */
+    pub block_list_id: BackupBlockId,
+}
+
+/**
+ * Data associated with a symlink
+ */
+#[derive(Serialize, Deserialize)]
+pub struct LinkData {
+    /**
+     * The target path the link points to
+     */
+    pub target: String,
 }
