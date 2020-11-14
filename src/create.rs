@@ -14,6 +14,7 @@ use crate::backup::Meta;
 use crate::backupobject::BackupObject;
 use crate::blockcache;
 use crate::blockcache::BlockCache;
+use crate::common::ByteSize;
 use crate::crypto::encode_keyed_block;
 use crate::crypto::DataEncryptionKey;
 use crate::errors::Error;
@@ -59,7 +60,7 @@ pub fn make_backup(repository: &str, path: &str, cache_dir: &Path, name: &str) -
     .or_else(|e| backrub_error("Could not finish backup instance", Some(e.into())))?;
     total_size += size;
     log::info!("Finished backup");
-    log::info!("Total backup size: {} bytes", total_size);
+    log::info!("Total backup size: {} bytes", ByteSize(total_size));
     Ok(())
 }
 
