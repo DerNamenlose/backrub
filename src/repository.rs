@@ -79,12 +79,12 @@ pub trait Repository {
      * Add a new block to the block store. This will return the
      * block's ID, if successful or an error description, if not
      */
-    fn add_block(&self, data: &[u8]) -> Result<BackupBlockId>;
+    fn add_block(&self, data: &[u8]) -> Result<(BackupBlockId, usize)>;
 
     /**
      * Store the list of entries in a backup instance in the block store
      */
-    fn store_entry_list(&self, entries: &EntryList) -> Result<BackupBlockId>;
+    fn store_entry_list(&self, entries: &EntryList) -> Result<(BackupBlockId, usize)>;
 
     /**
      * load the list of entries in a backup instance from the block store

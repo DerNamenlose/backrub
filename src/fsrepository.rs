@@ -126,13 +126,13 @@ impl Repository for FsRepository<'_> {
     //     }));
     // }
 
-    fn add_block(&self, data: &[u8]) -> Result<BackupBlockId> {
+    fn add_block(&self, data: &[u8]) -> Result<(BackupBlockId, usize)> {
         let id = write_block(&self.path, data)?;
         log::debug!("Added block of size {} with id {}", data.len(), id);
-        Ok(id)
+        Ok((id, data.len()))
     }
 
-    fn store_entry_list(&self, entries: &EntryList) -> Result<BackupBlockId> {
+    fn store_entry_list(&self, entries: &EntryList) -> Result<(BackupBlockId, usize)> {
         let mut output_block = vec![];
         entries
             .serialize(&mut Serializer::new(&mut output_block))
