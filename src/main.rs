@@ -35,10 +35,13 @@ struct CreateOpts {
     #[structopt(short, long)]
     /// exclude files matching the given regex
     exlude: Option<Vec<String>>,
+    #[structopt(short, long)]
     /// The path to backup
-    path: String,
+    source: String,
+    #[structopt(short, long)]
     /// The repository to write the backup to
     repository: String,
+    #[structopt(short, long)]
     /// The name under which to store the backup
     name: String,
 }
@@ -49,7 +52,8 @@ struct InstancesOpts {
     #[structopt(short, long)]
     /// Activate debug mode
     debug: bool,
-    /// The repository to write the backup to
+    #[structopt(short, long)]
+    /// The repository to list the instances from
     repository: String,
 }
 
@@ -59,13 +63,15 @@ struct RestoreOpts {
     #[structopt(short, long)]
     /// Activate debug mode
     debug: bool,
-    /// The repository to write the backup to
+    #[structopt(short, long)]
+    /// The repository to read the backup from
     repository: String,
-    /// The name under which to store the backup
+    #[structopt(short, long)]
+    /// The name under which the backup was stored
     name: String,
-
-    /// The path to backup
-    path: String,
+    #[structopt(short, long)]
+    /// The path to restore to
+    target: String,
 }
 
 fn main() -> backrub::errors::Result<()> {
@@ -82,13 +88,13 @@ fn main() -> backrub::errors::Result<()> {
         Opts::Init(opts) => program::initialize_repository(&opts.repository),
         Opts::Create(opts) => create::make_backup(
             &opts.repository,
-            &opts.path,
+            &opts.source,
             &cache_dir,
             &opts.name,
             &opts.exlude,
         ),
         Opts::Instances(opts) => instances::instances(&Path::new(&opts.repository)),
-        Opts::Restore(opts) => restore::restore_backup(&opts.repository, &opts.path, &opts.name),
+        Opts::Restore(opts) => restore::restore_backup(&opts.repository, &opts.target, &opts.name),
     };
     program_result
 }
