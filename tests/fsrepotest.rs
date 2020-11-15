@@ -147,7 +147,7 @@ mod fsrepotest {
         std::env::set_var("BACKRUB_KEY", "MyTestKey");
         make_backup(
             repo_temp.path().to_str().unwrap(),
-            source_dir.path().to_str().unwrap(),
+            &vec![String::from(source_dir.path().to_str().unwrap())],
             temp_cache.path(),
             "ThisRandomBackup",
             &None,

@@ -27,6 +27,7 @@ use rmp_serde::Serializer;
 use serde::Serialize;
 use sha3::{Digest, Sha3_256};
 use std::path::Path;
+use std::path::PathBuf;
 use std::time::SystemTime;
 
 /**
@@ -35,7 +36,7 @@ use std::time::SystemTime;
 
 pub fn make_backup(
     repository: &str,
-    path: &str,
+    source_paths: &Vec<String>,
     cache_dir: &Path,
     name: &str,
     exclude: &Option<Vec<String>>,
@@ -46,7 +47,10 @@ pub fn make_backup(
     let key = read_key()?;
     repo.open(key)?;
     let current_key = repo.current_key()?;
-    let source: FsSource = FsSource::new(&path);
+    let sources: Vec<(PathBuf, FsSource)> = source_paths
+        .iter()
+        .map(|p| (PathBuf::from(p), FsSource::new(&p)))
+        .collect();
 
     let now = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -55,14 +59,17 @@ pub fn make_backup(
     let mut total_size: usize = 0;
     let exclude_filter: Option<FilterFn> =
         exclude.as_ref().map(|e| regex_filter(&e)).transpose()?;
-    for object in source
-        .objects()
-        .filter(|obj| exclude_filter.is_none() || !exclude_filter.as_ref().unwrap()(obj))
-    {
-        log::debug!("Backing up {}", object.path().to_string_lossy());
-        let (entry, size) = backup_object(&path, &source, &repo, &cache, &current_key, object)?;
-        backup_entries.0.push(entry);
-        total_size += size;
+    for (path, source) in sources {
+        log::debug!("Start reading from source {}", path.to_string_lossy());
+        for object in source
+            .objects()
+            .filter(|obj| exclude_filter.is_none() || !exclude_filter.as_ref().unwrap()(obj))
+        {
+            log::debug!("Backing up {}", object.path().to_string_lossy());
+            let (entry, size) = backup_object(&path, &source, &repo, &cache, &current_key, object)?;
+            backup_entries.0.push(entry);
+            total_size += size;
+        }
     }
     log::info!("Finishing backup");
     let (entry_list_id, size) = repo.store_entry_list(&backup_entries)?;
@@ -79,7 +86,7 @@ pub fn make_backup(
 }
 
 fn backup_object(
-    path: &str,
+    path: &Path,
     source: &FsSource,
     repo: &FsRepository,
     cache: &impl BlockCache,
@@ -105,7 +112,7 @@ fn get_name(entry: &walkdir::DirEntry) -> Result<&str> {
     })
 }
 
-fn get_relative_name<'a>(entry: &'a walkdir::DirEntry, base: &'a str) -> Result<&'a str> {
+fn get_relative_name<'a>(entry: &'a walkdir::DirEntry, base: &'a Path) -> Result<&'a str> {
     entry
         .path()
         .strip_prefix(&base)
@@ -119,7 +126,7 @@ fn get_relative_name<'a>(entry: &'a walkdir::DirEntry, base: &'a str) -> Result<
 }
 
 fn backup_file(
-    path: &str,
+    path: &Path,
     source: &FsSource,
     repo: &FsRepository,
     cache: &impl BlockCache,
@@ -127,7 +134,7 @@ fn backup_file(
     file: walkdir::DirEntry,
 ) -> Result<(BackupEntry, usize)> {
     let source_name = get_name(&file)?;
-    let source_name_relative = get_relative_name(&file, &path)?;
+    let source_name_relative = get_relative_name(&file, path)?;
     let source_meta_data = get_meta_data(&file.path())?;
     let meta_block = get_meta_block(&source_name, &source_meta_data)?;
     if let Ok(Some(backup_id)) = cache.get_backup_block_id(&meta_block) {
@@ -165,8 +172,8 @@ fn backup_file(
     }
 }
 
-fn backup_dir(path: &str, dir: walkdir::DirEntry) -> Result<(BackupEntry, usize)> {
-    let source_name_relative = get_relative_name(&dir, &path)?;
+fn backup_dir(path: &Path, dir: walkdir::DirEntry) -> Result<(BackupEntry, usize)> {
+    let source_name_relative = get_relative_name(&dir, path)?;
     Ok((
         BackupEntry {
             name: String::from(source_name_relative),
@@ -177,7 +184,7 @@ fn backup_dir(path: &str, dir: walkdir::DirEntry) -> Result<(BackupEntry, usize)
     ))
 }
 
-fn backup_link(path: &str, link: walkdir::DirEntry) -> Result<(BackupEntry, usize)> {
+fn backup_link(path: &Path, link: walkdir::DirEntry) -> Result<(BackupEntry, usize)> {
     let source_name_relative = get_relative_name(&link, &path)?;
     let link_target = std::fs::read_link(link.path())
         .or_else(|e| backrub_error("Could not read link target", Some(e.into())))?;
