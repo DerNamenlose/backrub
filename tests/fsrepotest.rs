@@ -150,6 +150,7 @@ mod fsrepotest {
             source_dir.path().to_str().unwrap(),
             temp_cache.path(),
             "ThisRandomBackup",
+            &None,
         )?;
 
         let restore_dir = assert_fs::TempDir::new().unwrap();

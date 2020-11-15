@@ -18,8 +18,10 @@ use crate::common::ByteSize;
 use crate::crypto::encode_keyed_block;
 use crate::crypto::DataEncryptionKey;
 use crate::errors::Error;
+use crate::filter::FilterFn;
 use crate::fssource::FsBlockSource;
 use crate::os::unix::get_meta_data;
+use crate::regexfilter::regex_filter;
 use crate::repository::BackupBlockId;
 use rmp_serde::Serializer;
 use serde::Serialize;
@@ -31,7 +33,13 @@ use std::time::SystemTime;
  * entry point for the create sub-command
  */
 
-pub fn make_backup(repository: &str, path: &str, cache_dir: &Path, name: &str) -> Result<()> {
+pub fn make_backup(
+    repository: &str,
+    path: &str,
+    cache_dir: &Path,
+    name: &str,
+    exclude: &Option<Vec<String>>,
+) -> Result<()> {
     let mut repo = FsRepository::new(&Path::new(&repository));
     let cache = blockcache::open(&cache_dir)?;
     cache.ensure()?;
@@ -45,7 +53,13 @@ pub fn make_backup(repository: &str, path: &str, cache_dir: &Path, name: &str) -
         .expect("Could not get current time");
     let mut backup_entries = EntryList::from(vec![]);
     let mut total_size: usize = 0;
-    for object in source.objects() {
+    let exclude_filter: Option<FilterFn> =
+        exclude.as_ref().map(|e| regex_filter(&e)).transpose()?;
+    for object in source
+        .objects()
+        .filter(|obj| exclude_filter.is_none() || !exclude_filter.as_ref().unwrap()(obj))
+    {
+        log::debug!("Backing up {}", object.path().to_string_lossy());
         let (entry, size) = backup_object(&path, &source, &repo, &cache, &current_key, object)?;
         backup_entries.0.push(entry);
         total_size += size;

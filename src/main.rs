@@ -32,6 +32,9 @@ struct CreateOpts {
     #[structopt(short, long)]
     /// Activate debug mode
     debug: bool,
+    #[structopt(short, long)]
+    /// exclude files matching the given regex
+    exlude: Option<Vec<String>>,
     /// The path to backup
     path: String,
     /// The repository to write the backup to
@@ -77,9 +80,13 @@ fn main() -> backrub::errors::Result<()> {
         })?;
     let program_result = match options {
         Opts::Init(opts) => program::initialize_repository(&opts.repository),
-        Opts::Create(opts) => {
-            create::make_backup(&opts.repository, &opts.path, &cache_dir, &opts.name)
-        }
+        Opts::Create(opts) => create::make_backup(
+            &opts.repository,
+            &opts.path,
+            &cache_dir,
+            &opts.name,
+            &opts.exlude,
+        ),
         Opts::Instances(opts) => instances::instances(&Path::new(&opts.repository)),
         Opts::Restore(opts) => restore::restore_backup(&opts.repository, &opts.path, &opts.name),
     };
