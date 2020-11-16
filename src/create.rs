@@ -42,10 +42,14 @@ pub fn make_backup(
     exclude: &Option<Vec<String>>,
 ) -> Result<()> {
     let mut repo = FsRepository::new(&Path::new(&repository));
-    let cache = blockcache::open(&cache_dir)?;
-    cache.ensure()?;
     let key = read_key()?;
     repo.open(key)?;
+    if repo.meta()?.version != 1 {
+        return backrub_error("This repository has an unsupported version", None);
+    }
+    let repo_cache_dir = cache_dir.join(&repo.meta()?.id);
+    let cache = blockcache::open(&repo_cache_dir)?;
+    cache.ensure()?;
     let current_key = repo.current_key()?;
     let sources: Vec<(PathBuf, FsSource)> = source_paths
         .iter()

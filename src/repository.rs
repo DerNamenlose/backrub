@@ -18,6 +18,7 @@ pub struct BackrubRepositoryMeta {
     pub title: String,
     pub salt: Vec<u8>,
     pub iterations: u16,
+    pub id: String,
 }
 
 /**

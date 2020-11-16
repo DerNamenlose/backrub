@@ -114,17 +114,6 @@ impl Repository for FsRepository<'_> {
         self.current_key = Some((*current.0, (*current.1).clone()));
         Ok(())
     }
-    // fn start_object(&self, name: &str) -> Result<Box<dyn BackupObjectWriter>> {
-    //     log::debug!("Starting new backup object: {}", name);
-    //     return Ok(Box::new(FsBackupObject {
-    //         meta: BackupObject { blocks: vec![] },
-    //         entry: BackupEntry {
-    //             name: String::from(name),
-    //             block_list_id: String::new(),
-    //         },
-    //         repo_path: String::from(&self.path),
-    //     }));
-    // }
 
     fn add_block(&self, data: &[u8]) -> Result<(BackupBlockId, usize)> {
         let id = write_block(&self.path, data)?;
@@ -307,6 +296,7 @@ fn create_backrub_infrastructure(path: &Path, master_password: &InputKey) -> Res
         title: String::from("backrub backup repository."),
         salt: salt,
         iterations: iterations,
+        id: format!("{:016x}", rand::thread_rng().next_u64()),
     };
     log::debug!("Creating main meta file");
     let file = &mut File::create(path.join("backrub"))
