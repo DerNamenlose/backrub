@@ -65,7 +65,7 @@ pub fn make_backup(
             .objects()
             .filter(|obj| exclude_filter.is_none() || !exclude_filter.as_ref().unwrap()(obj))
         {
-            log::debug!("Backing up {}", object.path().to_string_lossy());
+            log::info!("Backing up {}", object.path().to_string_lossy());
             let (entry, size) = backup_object(&path, &source, &repo, &cache, &current_key, object)?;
             backup_entries.0.push(entry);
             total_size += size;
