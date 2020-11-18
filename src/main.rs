@@ -3,6 +3,7 @@ use backrub::errors::Error;
 use backrub::instances;
 use backrub::program;
 use backrub::restore;
+use backrub::show;
 use directories::ProjectDirs;
 use std::path::Path;
 use structopt::StructOpt;
@@ -13,6 +14,7 @@ enum Opts {
     Init(InitOps),
     Create(CreateOpts),
     Instances(InstancesOpts),
+    Show(ShowOpts),
     Restore(RestoreOpts),
 }
 
@@ -58,6 +60,22 @@ struct InstancesOpts {
 }
 
 #[derive(Debug, StructOpt)]
+#[structopt(name = "show", about = "Show the details of a given instance")]
+struct ShowOpts {
+    #[structopt(short, long)]
+    debug: bool,
+    #[structopt(short, long)]
+    /// Include the contents of the instance
+    contents: bool,
+    #[structopt(short, long)]
+    /// The repository to retrieve the instance from
+    repository: String,
+    #[structopt(short, long)]
+    /// The instance to retrieve
+    name: String,
+}
+
+#[derive(Debug, StructOpt)]
 #[structopt(name = "restore", about = "Restore information in a backup instance")]
 struct RestoreOpts {
     #[structopt(short, long)]
@@ -94,6 +112,7 @@ fn main() -> backrub::errors::Result<()> {
             &opts.exlude,
         ),
         Opts::Instances(opts) => instances::instances(&Path::new(&opts.repository)),
+        Opts::Show(opts) => show::show(&Path::new(&opts.repository), &opts.name, opts.contents),
         Opts::Restore(opts) => restore::restore_backup(&opts.repository, &opts.target, &opts.name),
     };
     program_result
