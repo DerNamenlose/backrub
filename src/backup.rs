@@ -94,6 +94,16 @@ pub enum EntryType {
     Link(LinkData),
 }
 
+impl Display for EntryType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            EntryType::File(_) => write!(f, "File"),
+            EntryType::Dir => write!(f, "Dir"),
+            EntryType::Link(_) => write!(f, "Link"),
+        }
+    }
+}
+
 /**
  * entry representing a single file object
  */
