@@ -1,5 +1,5 @@
 use super::common::read_key;
-use super::errors::{backrub_error, Result};
+use super::errors::{error, Result};
 use super::fsrepository::FsRepository;
 use super::repository::Repository;
 use crate::backup::LinkData;
@@ -35,7 +35,7 @@ pub fn restore_backup(repository: &str, path: &str, name: &str) -> Result<()> {
             log::error!("{}", &error);
             println!("{}", &error);
         }
-        backrub_error("Restore unsuccessful", None)
+        error("Restore unsuccessful", None)
     } else {
         Ok(())
     }
@@ -59,6 +59,7 @@ fn restore_file(
     let parent_path = restore_path.parent().ok_or(super::errors::Error {
         message: "Object has no parent directory",
         cause: None,
+        is_warning: false,
     })?;
     log::debug!(
         "Restoring {} to {}",
@@ -66,9 +67,9 @@ fn restore_file(
         restore_path.as_path().to_str().unwrap()
     );
     std::fs::create_dir_all(parent_path)
-        .or_else(|e| backrub_error("Could not create parent path", Some(e.into())))?;
+        .or_else(|e| error("Could not create parent path", Some(e.into())))?;
     let mut file = std::fs::File::create(&restore_path)
-        .or_else(|e| backrub_error("Could not create output file", Some(e.into())))?;
+        .or_else(|e| error("Could not create output file", Some(e.into())))?;
     let object = repo.open_object(&entry_data.block_list_id)?;
     let object_reader = repo.open_object_reader(object)?;
     let keyset = repo.keys()?;
@@ -77,7 +78,7 @@ fn restore_file(
         let data_block = decode_keyed_block(Cursor::new(block), &keyset)?;
         log::debug!("Contained block of size {}", data_block.len());
         file.write(&data_block)
-            .or_else(|e| backrub_error("Could not write to output file", Some(e.into())))?;
+            .or_else(|e| error("Could not write to output file", Some(e.into())))?;
     }
     set_meta_data(&restore_path, &entry.meta)?;
     Ok(())
@@ -86,7 +87,7 @@ fn restore_file(
 fn restore_dir(entry: &BackupEntry, base_path: &str) -> Result<()> {
     let dir_name: std::path::PathBuf = [base_path, &entry.name].iter().collect();
     std::fs::create_dir_all(&dir_name)
-        .or_else(|e| backrub_error("Could not create parent path", Some(e.into())))?;
+        .or_else(|e| error("Could not create parent path", Some(e.into())))?;
     set_meta_data(&dir_name, &entry.meta)
 }
 
@@ -95,6 +96,7 @@ fn restore_link(entry: &BackupEntry, link_data: &LinkData, base_path: &str) -> R
     let parent_path = restore_path.parent().ok_or(super::errors::Error {
         message: "Object has no parent directory",
         cause: None,
+        is_warning: false,
     })?;
     log::debug!(
         "Restoring {} to {}",
@@ -102,8 +104,8 @@ fn restore_link(entry: &BackupEntry, link_data: &LinkData, base_path: &str) -> R
         restore_path.as_path().to_str().unwrap()
     );
     std::fs::create_dir_all(parent_path)
-        .or_else(|e| backrub_error("Could not create parent path for symlink", Some(e.into())))?;
+        .or_else(|e| error("Could not create parent path for symlink", Some(e.into())))?;
     std::os::unix::fs::symlink(&link_data.target, &restore_path)
-        .or_else(|e| backrub_error("Could not create link", Some(e.into())))?;
+        .or_else(|e| error("Could not create link", Some(e.into())))?;
     set_meta_data(&restore_path, &entry.meta)
 }

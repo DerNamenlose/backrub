@@ -1,5 +1,4 @@
-use crate::errors::backrub_error;
-use crate::errors::Result;
+use crate::errors::{error, Result};
 use crate::filter::FilterFn;
 use regex::Regex;
 
@@ -7,9 +6,7 @@ pub fn regex_filter(expressions: &Vec<String>) -> Result<FilterFn> {
     let regex_result: Result<Vec<Regex>> = expressions
         .iter()
         .map(|e| {
-            Regex::new(&e).or_else(|error| {
-                backrub_error("Could not parse regular expression", Some(error.into()))
-            })
+            Regex::new(&e).or_else(|e| error("Could not parse regular expression", Some(e.into())))
         })
         .collect();
     let regexes = regex_result?;

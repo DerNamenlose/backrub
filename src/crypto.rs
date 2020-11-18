@@ -1,6 +1,4 @@
-use super::errors::backrub_error;
-use super::errors::Result;
-use crate::errors::Error;
+use super::errors::{error, Error, Result};
 use aes_gcm_siv::aead::generic_array::GenericArray;
 use aes_gcm_siv::aead::{Aead, NewAead};
 use aes_gcm_siv::Aes256GcmSiv;
@@ -57,7 +55,7 @@ impl Cipher {
         let encrypted = self
             .cipher
             .encrypt(GenericArray::from_slice(&nonce), block.as_ref())
-            .or_else(|_e| backrub_error("Encrypting block failed", None))?;
+            .or_else(|_e| error("Encrypting block failed", None))?;
         Ok(CryptoBlock {
             data: encrypted,
             nonce: Vec::from(nonce),
@@ -66,7 +64,7 @@ impl Cipher {
     pub fn decrypt_block(&self, block: &CryptoBlock) -> Result<Vec<u8>> {
         self.cipher
             .decrypt(GenericArray::from_slice(&block.nonce), block.data.as_ref())
-            .or_else(|_| backrub_error("Could not decrypt block.", None))
+            .or_else(|_| error("Could not decrypt block.", None))
     }
 }
 
@@ -107,7 +105,7 @@ pub fn derive_key(key: &InputKey, salt: &[u8], iterations: u32) -> Result<Master
     config.time_cost = iterations;
     argon2::hash_raw(&key.0, &salt, &config)
         .map(|key| MasterKey(key))
-        .or_else(|e| backrub_error("Could not derive master key", Some(e.into())))
+        .or_else(|e| error("Could not derive master key", Some(e.into())))
 }
 
 pub fn decode_block<R>(block: R, cipher: &Cipher) -> Result<Vec<u8>>
@@ -116,7 +114,7 @@ where
 {
     let mut deserializer = Deserializer::new(block);
     let crypto_block: CryptoBlock = Deserialize::deserialize(&mut deserializer)
-        .or_else(|e| backrub_error("Could not deserialize crypto block", Some(e.into())))?;
+        .or_else(|e| error("Could not deserialize crypto block", Some(e.into())))?;
     cipher.decrypt_block(&crypto_block)
 }
 
@@ -126,10 +124,11 @@ where
 {
     let mut deserializer = Deserializer::new(block);
     let keyed_block: KeyedCryptoBlock = Deserialize::deserialize(&mut deserializer)
-        .or_else(|e| backrub_error("Could not deserialize keyed block", Some(e.into())))?;
+        .or_else(|e| error("Could not deserialize keyed block", Some(e.into())))?;
     let key = keys.get(&keyed_block.key_index).ok_or(Error {
         message: "Key not found",
         cause: None,
+        is_warning: false,
     })?;
     let cipher = Cipher::new(&key);
     cipher.decrypt_block(&keyed_block.block)
@@ -142,7 +141,7 @@ where
     let crypto_block = cipher.encrypt_block(&block)?;
     crypto_block
         .serialize(&mut Serializer::new(target))
-        .or_else(|e| backrub_error("Could not serialize crypto block", Some(e.into())))?;
+        .or_else(|e| error("Could not serialize crypto block", Some(e.into())))?;
     Ok(())
 }
 
@@ -162,6 +161,6 @@ where
     };
     keyed_block
         .serialize(&mut Serializer::new(target))
-        .or_else(|e| backrub_error("Could not serialized keyed block", Some(e.into())))?;
+        .or_else(|e| error("Could not serialized keyed block", Some(e.into())))?;
     Ok(())
 }

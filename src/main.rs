@@ -101,6 +101,7 @@ fn main() -> backrub::errors::Result<()> {
         .ok_or(Error {
             message: "Could not calculate block cache directory",
             cause: None,
+            is_warning: false,
         })?;
     let program_result = match options {
         Opts::Init(opts) => program::initialize_repository(&opts.repository),

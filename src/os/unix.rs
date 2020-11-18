@@ -1,7 +1,5 @@
 use crate::backup::Meta;
-use crate::errors::backrub_error;
-use crate::errors::Error;
-use crate::errors::Result;
+use crate::errors::{error, Error, Result};
 use crate::os::unix::Meta::UnixMeta;
 use nix::sys::stat::SFlag;
 use serde::{Deserialize, Serialize};
@@ -84,8 +82,8 @@ impl Display for UnixFsMeta {
 
 pub fn get_meta_data(path: &Path) -> Result<Meta> {
     log::trace!("Retrieving meta data for {}", path.display());
-    let stat = nix::sys::stat::lstat(path)
-        .or_else(|e| backrub_error("Could not stat path", Some(e.into())))?;
+    let stat =
+        nix::sys::stat::lstat(path).or_else(|e| error("Could not stat path", Some(e.into())))?;
     let sflags = SFlag::from_bits_truncate(stat.st_mode);
     if sflags.contains(SFlag::S_IFREG) {
         Ok(UnixMeta(UnixFsMeta::File(UnixFileMetaData {
@@ -104,16 +102,17 @@ pub fn get_meta_data(path: &Path) -> Result<Meta> {
         })))
     } else if sflags.contains(SFlag::S_IFLNK) {
         let target = std::fs::read_link(path)
-            .or_else(|e| backrub_error("Could not resolve symlink", Some(e.into())))?;
+            .or_else(|e| error("Could not resolve symlink", Some(e.into())))?;
         let target_str = target.to_str().ok_or(Error {
-            message: "Could not decode link target to the ",
+            message: "Could not decode link target",
             cause: None,
+            is_warning: true,
         })?;
         Ok(UnixMeta(UnixFsMeta::Symlink(UnixSymlinkMetaData {
             target: String::from(target_str),
         })))
     } else {
-        backrub_error("Unsupported object type", None)
+        error("Unsupported object type", None)
     }
 }
 
@@ -133,11 +132,11 @@ fn set_file_metadata(path: &Path, meta: &UnixFileMetaData) -> Result<()> {
 
 fn set_common_meta(path: &Path, meta: &UnixCommonMeta) -> Result<()> {
     std::fs::set_permissions(path, Permissions::from_mode(meta.mode))
-        .or_else(|e| backrub_error("Could not set permissions", Some(e.into())))?;
+        .or_else(|e| error("Could not set permissions", Some(e.into())))?;
     nix::unistd::chown(
         path,
         Some(nix::unistd::Uid::from_raw(meta.uid)),
         Some(nix::unistd::Gid::from_raw(meta.gid)),
     )
-    .or_else(|e| backrub_error("Could not set file ownership", Some(e.into())))
+    .or_else(|e| error("Could not set file ownership", Some(e.into())))
 }

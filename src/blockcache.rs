@@ -1,4 +1,4 @@
-use crate::errors::backrub_error;
+use crate::errors::error;
 use crate::errors::Result;
 use crate::repository::BackupBlockId;
 use rmp_serde::{Deserializer, Serializer};
@@ -24,7 +24,7 @@ struct BlockCacheImpl<'a> {
 impl BlockCache for BlockCacheImpl<'_> {
     fn ensure(&self) -> Result<()> {
         std::fs::create_dir_all(self.path)
-            .or_else(|e| backrub_error("Could not create block cache directory", Some(e.into())))
+            .or_else(|e| error("Could not create block cache directory", Some(e.into())))
     }
 
     fn add_block(&self, data: &Vec<u8>, backup_block_id: &BackupBlockId) -> Result<()> {
@@ -34,11 +34,11 @@ impl BlockCache for BlockCacheImpl<'_> {
         let id_str = hex::encode(id_bytes);
         let path = self.path.join(&id_str);
         let id_file = std::fs::File::create(path)
-            .or_else(|e| backrub_error("Could not write block to block index", Some(e.into())))?;
+            .or_else(|e| error("Could not write block to block index", Some(e.into())))?;
         backup_block_id
             .serialize(&mut Serializer::new(id_file))
             .or_else(|e| {
-                backrub_error(
+                error(
                     "Could not store backup block ID in block index",
                     Some(e.into()),
                 )
@@ -53,10 +53,8 @@ impl BlockCache for BlockCacheImpl<'_> {
         let id_str = hex::encode(id_bytes);
         let path = self.path.join(id_str);
         if let Ok(block_file) = std::fs::File::open(path) {
-            let bid =
-                Deserialize::deserialize(&mut Deserializer::new(block_file)).or_else(|e| {
-                    backrub_error("Could not deserialize backup block ID", Some(e.into()))
-                })?;
+            let bid = Deserialize::deserialize(&mut Deserializer::new(block_file))
+                .or_else(|e| error("Could not deserialize backup block ID", Some(e.into())))?;
             Ok(Some(bid))
         } else {
             Ok(None)

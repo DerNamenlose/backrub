@@ -1,7 +1,6 @@
 use super::backup::BackupInstance;
 use super::common::read_key;
-use super::errors::backrub_error;
-use super::errors::Result;
+use super::errors::{error, Result};
 use super::fsrepository::FsRepository;
 use super::fssource::FsSource;
 use super::repository::Repository;
@@ -17,6 +16,7 @@ use crate::blockcache::BlockCache;
 use crate::common::ByteSize;
 use crate::crypto::encode_keyed_block;
 use crate::crypto::DataEncryptionKey;
+use crate::errors::warning;
 use crate::errors::Error;
 use crate::filter::FilterFn;
 use crate::fssource::FsBlockSource;
@@ -45,7 +45,7 @@ pub fn make_backup(
     let key = read_key()?;
     repo.open(key)?;
     if repo.meta()?.version != 1 {
-        return backrub_error("This repository has an unsupported version", None);
+        return error("This repository has an unsupported version", None);
     }
     let repo_cache_dir = cache_dir.join(&repo.meta()?.id);
     let cache = blockcache::open(&repo_cache_dir)?;
@@ -70,9 +70,20 @@ pub fn make_backup(
             .filter(|obj| exclude_filter.is_none() || !exclude_filter.as_ref().unwrap()(obj))
         {
             log::info!("Backing up {}", object.path().to_string_lossy());
-            let (entry, size) = backup_object(&path, &source, &repo, &cache, &current_key, object)?;
-            backup_entries.0.push(entry);
-            total_size += size;
+            let result = backup_object(&path, &source, &repo, &cache, &current_key, object);
+            match result {
+                Ok((entry, size)) => {
+                    backup_entries.0.push(entry);
+                    total_size += size;
+                }
+                Err(err) => {
+                    if err.is_warning {
+                        log::warn!("{}", err);
+                    } else {
+                        return Err(err);
+                    }
+                }
+            }
         }
     }
     log::info!("Finishing backup");
@@ -82,7 +93,7 @@ pub fn make_backup(
         time: now.as_secs(),
         entry_list_id: entry_list_id,
     })
-    .or_else(|e| backrub_error("Could not finish backup instance", Some(e.into())))?;
+    .or_else(|e| error("Could not finish backup instance", Some(e.into())))?;
     total_size += size;
     log::info!("Finished backup");
     log::info!("Total backup size: {} bytes", ByteSize(total_size));
@@ -105,7 +116,7 @@ fn backup_object(
     } else if file_type.is_symlink() {
         backup_link(path, object)
     } else {
-        backrub_error("Unsupported object type", None)
+        warning("Unsupported object type", None)
     }
 }
 
@@ -113,6 +124,7 @@ fn get_name(entry: &walkdir::DirEntry) -> Result<&str> {
     entry.path().to_str().ok_or(Error {
         message: "Could not decode file path",
         cause: None,
+        is_warning: true,
     })
 }
 
@@ -120,11 +132,12 @@ fn get_relative_name<'a>(entry: &'a walkdir::DirEntry, base: &'a Path) -> Result
     entry
         .path()
         .strip_prefix(&base)
-        .or_else(|e| backrub_error("Could not get relative source name", Some(e.into())))
+        .or_else(|e| error("Could not get relative source name", Some(e.into())))
         .and_then(|p| {
             p.to_str().ok_or(Error {
                 message: "Could not decode file path",
                 cause: None,
+                is_warning: true,
             })
         })
 }
@@ -191,10 +204,11 @@ fn backup_dir(path: &Path, dir: walkdir::DirEntry) -> Result<(BackupEntry, usize
 fn backup_link(path: &Path, link: walkdir::DirEntry) -> Result<(BackupEntry, usize)> {
     let source_name_relative = get_relative_name(&link, &path)?;
     let link_target = std::fs::read_link(link.path())
-        .or_else(|e| backrub_error("Could not read link target", Some(e.into())))?;
+        .or_else(|e| error("Could not read link target", Some(e.into())))?;
     let link_target_string = link_target.to_str().ok_or(Error {
         message: "Could not decode link target path",
         cause: None,
+        is_warning: true,
     })?;
     Ok((
         BackupEntry {
@@ -242,7 +256,7 @@ fn finish_object(
     let mut object_buffer = vec![];
     (*object)
         .serialize(&mut Serializer::new(&mut object_buffer))
-        .or_else(|e| backrub_error("Could not serialize meta data", Some(e.into())))?;
+        .or_else(|e| error("Could not serialize meta data", Some(e.into())))?;
     let mut storage_buf = vec![];
     encode_keyed_block(&mut storage_buf, &object_buffer, current_key)?;
     let (id, size) = repo.add_block(&storage_buf)?;
@@ -254,10 +268,10 @@ fn get_meta_block(path: &str, meta: &Meta) -> Result<Vec<u8>> {
     let mut serializer = Serializer::new(&mut buf);
     (*path)
         .serialize(&mut serializer)
-        .or_else(|e| backrub_error("Could not serialize path", Some(e.into())))?;
+        .or_else(|e| error("Could not serialize path", Some(e.into())))?;
     (*meta)
         .serialize(&mut serializer)
-        .or_else(|e| backrub_error("Could not serialize meta", Some(e.into())))?;
+        .or_else(|e| error("Could not serialize meta", Some(e.into())))?;
     let mut hasher = Sha3_256::new();
     hasher.update(&buf);
     Ok(hasher.finalize().to_vec())

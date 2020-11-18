@@ -6,7 +6,7 @@ use crate::backupobject::BackupObject;
 use crate::crypto::DataEncryptionKey;
 use crate::crypto::InputKey;
 use crate::crypto::KeySet;
-use crate::errors::backrub_error;
+use crate::errors::error;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 /**
@@ -30,7 +30,7 @@ pub struct BackupBlockId(#[serde(with = "serde_bytes")] Vec<u8>);
 impl BackupBlockId {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.len() != 32 {
-            backrub_error("Block IDs MUST be 256 bit", None)
+            error("Block IDs MUST be 256 bit", None)
         } else {
             let id = Vec::from(bytes);
             Ok(Self(id))

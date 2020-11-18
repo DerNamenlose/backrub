@@ -7,6 +7,7 @@ use std::fmt::Display;
 pub struct Error {
     pub message: &'static str,
     pub cause: Option<std::boxed::Box<dyn std::error::Error>>,
+    pub is_warning: bool,
 }
 
 /**
@@ -14,13 +15,19 @@ pub struct Error {
  */
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub fn backrub_error<T>(
-    message: &'static str,
-    error: Option<Box<dyn std::error::Error>>,
-) -> Result<T> {
+pub fn error<T>(message: &'static str, error: Option<Box<dyn std::error::Error>>) -> Result<T> {
     Err(Error {
         message: message,
         cause: error,
+        is_warning: false,
+    })
+}
+
+pub fn warning<T>(message: &'static str, error: Option<Box<dyn std::error::Error>>) -> Result<T> {
+    Err(Error {
+        message: message,
+        cause: error,
+        is_warning: true,
     })
 }
 
