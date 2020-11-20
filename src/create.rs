@@ -51,9 +51,13 @@ pub fn make_backup(
     let cache = blockcache::open(&repo_cache_dir)?;
     cache.ensure()?;
     let current_key = repo.current_key()?;
-    let sources: Vec<(PathBuf, FsSource)> = source_paths
+    let exclude_filter: Option<Box<FilterFn>> =
+        exclude.as_ref().map(|e| regex_filter(&e)).transpose()?;
+    let filter_fn: &dyn Fn(&walkdir::DirEntry) -> bool =
+        &|obj| exclude_filter.is_none() || !exclude_filter.as_ref().unwrap()(obj);
+    let sources: Vec<(PathBuf, FsSource<&dyn Fn(&walkdir::DirEntry) -> bool>)> = source_paths
         .iter()
-        .map(|p| (PathBuf::from(p), FsSource::new(&p)))
+        .map(|p| (PathBuf::from(p), FsSource::new(&p, &filter_fn)))
         .collect();
 
     let now = SystemTime::now()
@@ -61,14 +65,9 @@ pub fn make_backup(
         .expect("Could not get current time");
     let mut backup_entries = EntryList::from(vec![]);
     let mut total_size: usize = 0;
-    let exclude_filter: Option<FilterFn> =
-        exclude.as_ref().map(|e| regex_filter(&e)).transpose()?;
     for (path, source) in sources {
         log::debug!("Start reading from source {}", path.to_string_lossy());
-        for object in source
-            .objects()
-            .filter(|obj| exclude_filter.is_none() || !exclude_filter.as_ref().unwrap()(obj))
-        {
+        for object in source.objects() {
             log::info!("Backing up {}", object.path().to_string_lossy());
             let result = backup_object(&path, &source, &repo, &cache, &current_key, object);
             match result {
@@ -100,14 +99,17 @@ pub fn make_backup(
     Ok(())
 }
 
-fn backup_object(
+fn backup_object<F>(
     path: &Path,
-    source: &FsSource,
+    source: &FsSource<F>,
     repo: &FsRepository,
     cache: &impl BlockCache,
     current_key: &(u64, DataEncryptionKey),
     object: walkdir::DirEntry,
-) -> Result<(BackupEntry, usize)> {
+) -> Result<(BackupEntry, usize)>
+where
+    F: Fn(&walkdir::DirEntry) -> bool,
+{
     let file_type = object.file_type();
     if file_type.is_file() {
         backup_file(path, source, repo, cache, current_key, object)
@@ -142,14 +144,17 @@ fn get_relative_name<'a>(entry: &'a walkdir::DirEntry, base: &'a Path) -> Result
         })
 }
 
-fn backup_file(
+fn backup_file<F>(
     path: &Path,
-    source: &FsSource,
+    source: &FsSource<F>,
     repo: &FsRepository,
     cache: &impl BlockCache,
     current_key: &(u64, DataEncryptionKey),
     file: walkdir::DirEntry,
-) -> Result<(BackupEntry, usize)> {
+) -> Result<(BackupEntry, usize)>
+where
+    F: Fn(&walkdir::DirEntry) -> bool,
+{
     let source_name = get_name(&file)?;
     let source_name_relative = get_relative_name(&file, path)?;
     let source_meta_data = get_meta_data(&file.path())?;

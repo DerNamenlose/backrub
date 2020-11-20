@@ -4,20 +4,36 @@ use std::io::Read;
 use walkdir::DirEntry;
 use walkdir::WalkDir;
 
-pub struct FsSource {
+pub struct FsSource<'a, F>
+where
+    F: Fn(&walkdir::DirEntry) -> bool,
+{
     path: String,
+    filter: &'a F,
 }
 
-impl FsSource {
-    pub fn new(path: &str) -> Self {
+impl<F> FsSource<'_, F>
+where
+    F: Fn(&walkdir::DirEntry) -> bool,
+{
+    pub fn new<'a>(path: &str, filter: &'a F) -> FsSource<'a, F>
+    where
+        F: Fn(&walkdir::DirEntry) -> bool,
+    {
         FsSource {
             path: String::from(path),
+            filter: filter,
         }
     }
 
     pub fn objects(&self) -> FsObjectIterator {
         FsObjectIterator {
-            current: Box::new(WalkDir::new(&self.path).into_iter().filter_map(|e| e.ok())),
+            current: Box::new(
+                WalkDir::new(&self.path)
+                    .into_iter()
+                    .filter_entry(&(*self.filter))
+                    .filter_map(|e| e.ok()),
+            ),
         }
     }
 
@@ -28,11 +44,11 @@ impl FsSource {
     }
 }
 
-pub struct FsObjectIterator {
-    current: Box<dyn Iterator<Item = DirEntry>>,
+pub struct FsObjectIterator<'a> {
+    current: Box<dyn Iterator<Item = DirEntry> + 'a>,
 }
 
-impl Iterator for FsObjectIterator {
+impl Iterator for FsObjectIterator<'_> {
     type Item = DirEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
