@@ -140,8 +140,7 @@ mod fsrepotest {
         setup_source_dir(source_dir.path());
         println!("Done.");
         println!("Starting backup process...");
-        let repo_temp_ = assert_fs::TempDir::new().unwrap();
-        let repo_temp = repo_temp_.into_persistent();
+        let repo_temp = assert_fs::TempDir::new().unwrap();
 
         let repo = FsRepository::new(repo_temp.path());
         repo.initialize(InputKey::from(b"MyTestKey" as &[u8]))?;
@@ -154,8 +153,7 @@ mod fsrepotest {
             &None,
         )?;
 
-        let restore_dir_ = assert_fs::TempDir::new().unwrap();
-        let restore_dir = restore_dir_.into_persistent();
+        let restore_dir = assert_fs::TempDir::new().unwrap();
         let restore_path = restore_dir.path().to_str().unwrap();
         println!("Restoring backup...");
         restore_backup(
