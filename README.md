@@ -73,7 +73,7 @@ to match the backup object name against. Only objects matching at least one filt
 will be restored. If no filter is given, backrub restores the complete instance.
 
 ```sh
-backrub restore -r /my/repository -n MyBackup -t /the/restore/path -i '\.jpg' '\.png'`
+backrub restore -r /my/repository -n MyBackup -t /the/restore/path -i '\.jpg' '\.png'
 ```
 
 This call will only restore objects ending in `.jpg` or `.png` (i.e. most likely
