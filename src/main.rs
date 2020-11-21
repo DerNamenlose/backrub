@@ -97,7 +97,7 @@ struct RestoreOpts {
     /// the objects to restore. Only objects, whose names match any of the
     /// filter expressions will be restored to the target. If no filter
     /// is given, all objects will be restored.
-    include: Vec<String>,
+    include: Option<Vec<String>>,
 }
 
 fn main() -> backrub::errors::Result<()> {

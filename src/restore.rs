@@ -13,7 +13,7 @@ use std::path::Path;
 pub fn restore_backup(
     repository: &str,
     path: &str,
-    include: &Vec<String>,
+    include: &Option<Vec<String>>,
     name: &str,
 ) -> Result<()> {
     log::info!(
@@ -28,8 +28,15 @@ pub fn restore_backup(
     let instance = repository.open_instance(name)?;
     let entries = repository.load_entry_list(&instance.entry_list_id)?;
     let mut errors = vec![];
-    let filter = regex_string_filter(&include)?;
-    for entry in entries.0.iter().filter(|entry| filter(&entry.name)) {
+    let filter: Option<Box<dyn Fn(&str) -> bool>> = include
+        .as_ref()
+        .map(|e| regex_string_filter(&e))
+        .transpose()?;
+    for entry in entries
+        .0
+        .iter()
+        .filter(|entry| filter.is_none() || filter.as_ref().unwrap()(&entry.name))
+    {
         let restore_result = restore_entry(&repository, &entry, path);
         match restore_result {
             Ok(_) => log::debug!("Successfully restored object"),
