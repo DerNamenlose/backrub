@@ -245,6 +245,7 @@ fn backup_blocks(
             let (id, size) = repo.add_block(&output_block)?;
             log::trace!("Block cache miss for {}", id);
             stored_size += size;
+            cache.add_block(&block, &id)?;
             id
         };
         object.blocks.push(backup_id);
