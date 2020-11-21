@@ -24,3 +24,16 @@ pub fn regex_direntry_filter(expressions: &Vec<String>) -> Result<Box<FilterFn>>
         }
     }))
 }
+
+pub fn regex_string_filter(expressions: &Vec<String>) -> Result<Box<dyn Fn(&str) -> bool>> {
+    let regex_result: Result<Vec<Regex>> = expressions
+        .iter()
+        .map(|e| {
+            Regex::new(&e).or_else(|e| error("Could not parse regular expression", Some(e.into())))
+        })
+        .collect();
+    let regexes = regex_result?;
+    Ok(Box::new(move |element: &str| {
+        regexes.iter().any(|e| e.is_match(element))
+    }))
+}

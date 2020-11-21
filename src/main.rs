@@ -90,6 +90,14 @@ struct RestoreOpts {
     #[structopt(short, long)]
     /// The path to restore to
     target: String,
+    #[structopt(short, long)]
+    /// Filters for the objects to restore.
+    ///
+    /// This parameter takes a list of regular expressions to filter
+    /// the objects to restore. Only objects, whose names match any of the
+    /// filter expressions will be restored to the target. If no filter
+    /// is given, all objects will be restored.
+    include: Vec<String>,
 }
 
 fn main() -> backrub::errors::Result<()> {
@@ -114,7 +122,9 @@ fn main() -> backrub::errors::Result<()> {
         ),
         Opts::Instances(opts) => instances::instances(&Path::new(&opts.repository)),
         Opts::Show(opts) => show::show(&Path::new(&opts.repository), &opts.name, opts.contents),
-        Opts::Restore(opts) => restore::restore_backup(&opts.repository, &opts.target, &opts.name),
+        Opts::Restore(opts) => {
+            restore::restore_backup(&opts.repository, &opts.target, &opts.include, &opts.name)
+        }
     };
     program_result
 }

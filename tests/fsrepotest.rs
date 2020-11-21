@@ -159,6 +159,7 @@ mod fsrepotest {
         restore_backup(
             repo_temp.path().to_str().unwrap(),
             restore_path,
+            &vec![],
             "ThisRandomBackup",
         )?;
 
