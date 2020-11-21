@@ -2,7 +2,7 @@ use crate::errors::{error, Result};
 use crate::filter::FilterFn;
 use regex::Regex;
 
-pub fn regex_filter(expressions: &Vec<String>) -> Result<Box<FilterFn>> {
+pub fn regex_direntry_filter(expressions: &Vec<String>) -> Result<Box<FilterFn>> {
     let regex_result: Result<Vec<Regex>> = expressions
         .iter()
         .map(|e| {

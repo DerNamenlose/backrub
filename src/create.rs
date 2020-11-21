@@ -21,7 +21,7 @@ use crate::errors::Error;
 use crate::filter::FilterFn;
 use crate::fssource::FsBlockSource;
 use crate::os::unix::get_meta_data;
-use crate::regexfilter::regex_filter;
+use crate::regexfilter::regex_direntry_filter;
 use crate::repository::BackupBlockId;
 use rmp_serde::Serializer;
 use serde::Serialize;
@@ -51,8 +51,10 @@ pub fn make_backup(
     let cache = blockcache::open(&repo_cache_dir)?;
     cache.ensure()?;
     let current_key = repo.current_key()?;
-    let exclude_filter: Option<Box<FilterFn>> =
-        exclude.as_ref().map(|e| regex_filter(&e)).transpose()?;
+    let exclude_filter: Option<Box<FilterFn>> = exclude
+        .as_ref()
+        .map(|e| regex_direntry_filter(&e))
+        .transpose()?;
     let filter_fn: &dyn Fn(&walkdir::DirEntry) -> bool =
         &|obj| exclude_filter.is_none() || !exclude_filter.as_ref().unwrap()(obj);
     let sources: Vec<(PathBuf, FsSource<&dyn Fn(&walkdir::DirEntry) -> bool>)> = source_paths
