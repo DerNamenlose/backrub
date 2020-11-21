@@ -8,7 +8,7 @@ backups without exploding storage requirements.
 
 backrub implements multiple sub-commands for different use cases.
 
-### init
+### Initializing a new repository
 
 backrub stores backup instances in a repository, that needs to be initialized before
 use. This sets up the repository structure and cryptographic material.
@@ -23,7 +23,7 @@ for a master password to derive the cryptographic material from.
 _Attention:_ DO NOT loose this master password. The data in a repository will be
 completely inaccessible without this password.
 
-### create
+### Creating a new backup instance
 
 The `create` command creates a new backup instance in a given repository. A backup
 instance is a collection of objects (e.g. files or directories) at a specific point
@@ -52,6 +52,32 @@ backrub create -n MyBackup -r /my/repository -s /home -e '\.bak$'
 
 This create a backup instance from the `/home` directory, but excludes files
 and directories ending in `.bak`.
+
+### Restoring data from a backup
+
+The `restore` command restores data from a specific backup instance. 
+
+```sh
+backrub restore -r /my/repository -n MyBackup -t /the/restore/path
+```
+
+This restores the contents of the `MyBackup` instance in the repository `/my/repository`
+to `/the/restore/path`. 
+
+#### Partial restore
+
+Quite often only a partial restore is required to get back certain data (e.g.
+after accidentally deleting a file). backrub supports partial restores by allowing
+the user to supply an include-filter in the form of one or more regular expressions
+to match the backup object name against. Only objects matching at least one filter
+will be restored. If no filter is given, backrub restores the complete instance.
+
+```sh
+backrub restore -r /my/repository -n MyBackup -t /the/restore/path -i '\.jpg' '\.png'`
+```
+
+This call will only restore objects ending in `.jpg` or `.png` (i.e. most likely
+only images). All other objects in an instance will be ignored.
 
 ## FAQ
 
