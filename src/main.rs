@@ -1,11 +1,16 @@
 use backrub::create;
+use backrub::errors::error;
 use backrub::errors::Error;
 use backrub::instances;
 use backrub::program;
 use backrub::restore;
 use backrub::show;
 use directories::ProjectDirs;
+use std::fs::File;
+use std::io::BufRead;
+use std::io::BufReader;
 use std::path::Path;
+use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -38,6 +43,9 @@ struct CreateOpts {
     /// exclude files matching the given regex
     exlude: Option<Vec<String>>,
     #[structopt(short, long, min_values = 1)]
+    /// load the exclude expressions from a file
+    #[structopt(long)]
+    exclude_from: Option<PathBuf>,
     /// The path to backup
     sources: Vec<String>,
     #[structopt(short, long)]
@@ -118,7 +126,7 @@ fn main() -> backrub::errors::Result<()> {
             &opts.sources,
             &cache_dir,
             &opts.name,
-            &opts.exlude,
+            &merge_exclude(&opts.exlude, &opts.exclude_from)?,
         ),
         Opts::Instances(opts) => instances::instances(&Path::new(&opts.repository)),
         Opts::Show(opts) => show::show(&Path::new(&opts.repository), &opts.name, opts.contents),
@@ -127,4 +135,30 @@ fn main() -> backrub::errors::Result<()> {
         }
     };
     program_result
+}
+
+fn merge_exclude(
+    exclude: &Option<Vec<String>>,
+    exclude_from: &Option<PathBuf>,
+) -> backrub::errors::Result<Option<Vec<String>>> {
+    let exlusion_entries = if let Some(path) = exclude_from {
+        let input_file =
+            File::open(path).or_else(|e| error("Could not load exclusion list", Some(e.into())))?;
+        let lines = BufReader::new(input_file).lines();
+        Some(
+            lines
+                .collect::<Result<Vec<String>, std::io::Error>>()
+                .or_else(|e| error("Could not read exclusion file", Some(e.into())))?,
+        )
+    } else {
+        None
+    };
+    Ok(Some(
+        [&exlusion_entries, exclude]
+            .iter()
+            .filter(|list| list.is_some())
+            .flat_map(|e| (*e).clone())
+            .flatten()
+            .collect(),
+    ))
 }
