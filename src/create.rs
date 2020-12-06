@@ -13,6 +13,7 @@ use crate::backup::Meta;
 use crate::backupobject::BackupObject;
 use crate::blockcache;
 use crate::blockcache::BlockCache;
+use crate::common::human_readable;
 use crate::common::ByteSize;
 use crate::crypto::encode_keyed_block;
 use crate::crypto::DataEncryptionKey;
@@ -43,6 +44,7 @@ pub fn make_backup(
 ) -> Result<()> {
     let mut repo = FsRepository::new(&Path::new(&repository));
     let key = read_key()?;
+    let start = std::time::SystemTime::now();
     repo.open(key)?;
     if repo.meta()?.version != 1 {
         return error("This repository has an unsupported version", None);
@@ -97,6 +99,10 @@ pub fn make_backup(
     .or_else(|e| error("Could not finish backup instance", Some(e.into())))?;
     total_size += size;
     log::info!("Finished backup");
+    log::info!(
+        "Elapsed time: {}",
+        human_readable(&start.elapsed().unwrap_or(std::time::Duration::from_secs(0)))
+    );
     log::info!("Total backup size: {} bytes", ByteSize(total_size));
     Ok(())
 }

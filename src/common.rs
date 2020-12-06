@@ -25,3 +25,15 @@ impl Display for ByteSize {
         Ok(())
     }
 }
+
+pub fn human_readable(duration: &std::time::Duration) -> String {
+    if duration.as_secs_f64() < 60.0 {
+        format!("{:2} s", duration.as_secs_f64())
+    } else {
+        format!(
+            "{} min {:2} s",
+            duration.as_secs() / 60,
+            duration.as_secs_f64() % 60.0
+        )
+    }
+}
