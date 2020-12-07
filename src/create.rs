@@ -164,7 +164,7 @@ where
     F: Fn(&walkdir::DirEntry) -> bool,
 {
     let source_name = get_name(&file)?;
-    let source_name_relative = get_relative_name(&file, path)?;
+    let source_name_relative = get_relative_name(&file, &Path::new("/"))?;
     let source_meta_data = get_meta_data(&file.path())?;
     let meta_block = get_meta_block(&source_name, &source_meta_data)?;
     if let Ok(Some(backup_id)) = cache.get_backup_block_id(&meta_block) {
@@ -203,7 +203,7 @@ where
 }
 
 fn backup_dir(path: &Path, dir: walkdir::DirEntry) -> Result<(BackupEntry, usize)> {
-    let source_name_relative = get_relative_name(&dir, path)?;
+    let source_name_relative = get_relative_name(&dir, &Path::new("/"))?;
     Ok((
         BackupEntry {
             name: String::from(source_name_relative),
@@ -215,7 +215,7 @@ fn backup_dir(path: &Path, dir: walkdir::DirEntry) -> Result<(BackupEntry, usize
 }
 
 fn backup_link(path: &Path, link: walkdir::DirEntry) -> Result<(BackupEntry, usize)> {
-    let source_name_relative = get_relative_name(&link, &path)?;
+    let source_name_relative = get_relative_name(&link, &Path::new("/"))?;
     let link_target = std::fs::read_link(link.path())
         .or_else(|e| error("Could not read link target", Some(e.into())))?;
     let link_target_string = link_target.to_str().ok_or(Error {
