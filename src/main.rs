@@ -42,10 +42,10 @@ struct CreateOpts {
     #[structopt(short, long)]
     /// exclude files matching the given regex
     exlude: Option<Vec<String>>,
-    #[structopt(short, long, min_values = 1)]
-    /// load the exclude expressions from a file
     #[structopt(long)]
+    /// load the exclude expressions from a file
     exclude_from: Option<PathBuf>,
+    #[structopt(short, long, required = true)]
     /// The path to backup
     sources: Vec<String>,
     #[structopt(short, long)]
