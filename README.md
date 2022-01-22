@@ -79,6 +79,12 @@ backrub restore -r /my/repository -n MyBackup -t /the/restore/path -i '\.jpg' '\
 This call will only restore objects ending in `.jpg` or `.png` (i.e. most likely
 only images). All other objects in an instance will be ignored.
 
+## Example backup scripts
+
+See [backrub-scripts](https://github.com/DerNamenlose/backrub-scripts) for an example
+of backup scripts using backrub to automate backing up data on a Linux system to a
+personal NAS.
+
 ## FAQ
 
 ### Is it ready for prime time yet?
