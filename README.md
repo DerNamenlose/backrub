@@ -1,3 +1,18 @@
+# Project no longer maintained
+
+I don't have the resources (or inclination) to properly develop and maintain `backrub` 
+in the future. It was a fun little experiment, that was my backup solution for quite a while,
+but the effort required to bring it to a state where I can seriously recommend it for
+general use is just too much.
+
+If you want similar features in a much more mature software: I've switched to
+[restic](https://restic.net/) with the [Autorestic](https://autorestic.vercel.app/)
+frontend for my private backup needs. This gives me all the features I envisioned for
+`backrub` and more, so maybe give this a go.
+
+Whether there will be any additional development around here in the future is anyone's
+guess, but I wouldn't hold my breath.
+
 # backrub de-duplicating backup
 
 backrub is a de-duplicating backup program, that stores backups encrypted. This
